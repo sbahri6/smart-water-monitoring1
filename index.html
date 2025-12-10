@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <!-- Disable zooming on mobile -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no" />
+  <!-- Prevent page zoom on mobile -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Smart Water System</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
@@ -23,7 +23,6 @@
     }
 
     *{box-sizing:border-box}
-    html,body { height: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
     body{
       margin:0;
       font-family:'Inter',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
@@ -32,7 +31,7 @@
       -webkit-font-smoothing:antialiased;
       -moz-osx-font-smoothing:grayscale;
       line-height:1.3;
-      touch-action: manipulation; /* better touch behavior */
+      touch-action: manipulation;
     }
 
     .container{
@@ -57,7 +56,7 @@
     }
     .card-title{font-size:1.05rem;font-weight:600;margin-bottom:12px;border-bottom:1px solid #f1f5f9;padding-bottom:10px;color:var(--muted)}
 
-    /* Gauges */
+    /* Gauge grid - responsive */
     .gauge-grid{
       display:grid;
       gap:12px;
@@ -67,67 +66,54 @@
     .gauge-item{text-align:center;padding-top:4px}
     .gauge-item h4{margin:8px 0 0 0;font-size:0.9rem;color:var(--muted)}
     .gauge-val{display:block;margin-top:-36px;font-weight:700;font-size:1.05rem}
+
+    /* Canvas sizing */
     .gauge-item canvas{width:100% !important;height:130px !important;display:block;margin:0 auto}
+    .mini-chart canvas{width:100% !important;height:140px !important}
 
-    /* Pump control - improved mobile layout */
-    .pump-group{display:grid;gap:8px}
-    .pump{
-      display:grid;
-      gap:8px;
-      grid-template-rows: auto auto;
-      align-items:center;
-      width:100%;
-    }
-
-    /* first row: label + mode buttons */
-    .pump .row-mode{
+    /* Controls - updated to two-row pump blocks */
+    .pump-container{
       display:flex;
+      flex-direction:column;
       gap:8px;
-      align-items:center;
-      justify-content:space-between;
+      align-items:stretch;
+      margin-bottom:12px;
       width:100%;
     }
-    .pump .row-mode .left{font-weight:700;color:var(--muted)}
-    .pump .row-mode .modes{display:flex;gap:8px}
-
-    /* second row: full-width on/off buttons */
-    .pump .row-action{display:flex;gap:8px;justify-content:stretch;flex-wrap:nowrap}
-    .pump .row-action button{flex:1;padding:12px 14px;border-radius:10px;font-weight:700; font-size:1rem}
-
-    /* Buttons */
-    .btn-mode{padding:8px 12px;border-radius:8px;background:#e2e8f0;color:#64748b;border:none;font-weight:700;min-width:78px}
+    .pump-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .pump-left{ font-weight:600; color:var(--muted); min-width:90px; }
+    .btn-group{display:flex; gap:8px}
+    button{padding:8px 12px;border-radius:8px;border:none;font-weight:600;cursor:pointer;transition:all .12s}
+    .btn-mode{background:#e2e8f0;color:#64748b}
     .btn-mode.active{background:var(--primary);color:white}
     .btn-action{background:#e2e8f0;color:#94a3b8;opacity:0.5;pointer-events:none;border-radius:8px}
     .btn-action.enabled{opacity:1;pointer-events:auto}
     .btn-action.on{background:var(--success);color:#fff}
     .btn-action.off{background:var(--danger);color:#fff}
 
-    /* History split */
+    /* History grid split into 3 small charts */
     .history-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
     .hist-card .card-title{border-bottom:none;padding-bottom:0;margin-bottom:8px}
 
     /* Loader */
     #loader{padding:36px;text-align:center;color:var(--muted)}
-
-    /* Small screens adjustments */
-    @media (max-width:520px){
+    @media (max-width:420px){
       .gauge-item canvas{height:110px !important}
       .gauge-val{margin-top:-30px;font-size:1rem}
-      .pump .row-mode {flex-direction:row;align-items:center}
-      .pump .row-action button{padding:14px 12px;font-size:1rem}
-      .btn-mode{min-width:64px;padding:10px 12px}
     }
-
-    /* Prevent double-tap zoom (extra) */
-    html, body { touch-action: manipulation; -ms-touch-action: manipulation; }
-    button { -webkit-tap-highlight-color: rgba(0,0,0,0.05); touch-action: manipulation; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>💧 Smart Water <span id="connStatus" class="status-dot" title="offline"></span></h1>
-      <p class="lead">Live Dashboard — tidy controls for mobile</p>
+      <p class="lead">Live Dashboard — responsive & split history</p>
     </header>
 
     <div id="loader">Connecting to System...</div>
@@ -157,41 +143,51 @@
       <div class="card">
         <div class="card-title">Pump Control</div>
 
-        <div class="pump-group">
-          <!-- Farm pump: two rows (mode row, action row) -->
-          <div class="pump">
-            <div class="row-mode">
-              <div class="left">Farm Pump</div>
-              <div class="modes">
-                <button id="btnFarmAuto" class="btn-mode active" onclick="setMode('farm', false)">Auto</button>
-                <button id="btnFarmMan" class="btn-mode" onclick="setMode('farm', true)">Manual</button>
-              </div>
+        <!-- Farm pump: now two rows (mode row, state row) -->
+        <div class="pump-container">
+          <div class="pump-row">
+            <div class="pump-left">Farm Pump</div>
+            <div class="btn-group">
+              <button id="btnFarmAuto" class="btn-mode active" onclick="setMode('farm', false)">Auto</button>
+              <button id="btnFarmMan" class="btn-mode" onclick="setMode('farm', true)">Manual</button>
             </div>
-            <div class="row-action">
+            <!-- keep space for consistent alignment on wide screens -->
+            <div style="width:8px"></div>
+          </div>
+
+          <div class="pump-row">
+            <div></div>
+            <div class="btn-group">
               <button id="btnFarmOn" class="btn-action enabled" onclick="setState('farm', true)">ON</button>
               <button id="btnFarmOff" class="btn-action enabled" onclick="setState('farm', false)">OFF</button>
             </div>
           </div>
+        </div>
 
-          <!-- Drain pump: two rows (mode row, action row) -->
-          <div class="pump">
-            <div class="row-mode">
-              <div class="left">Drainage Pump</div>
-              <div class="modes">
-                <button id="btnDrainAuto" class="btn-mode active" onclick="setMode('drain', false)">Auto</button>
-                <button id="btnDrainMan" class="btn-mode" onclick="setMode('drain', true)">Manual</button>
-              </div>
+        <!-- Drain pump: two rows -->
+        <div class="pump-container">
+          <div class="pump-row">
+            <div class="pump-left">Drainage Pump</div>
+            <div class="btn-group">
+              <button id="btnDrainAuto" class="btn-mode active" onclick="setMode('drain', false)">Auto</button>
+              <button id="btnDrainMan" class="btn-mode" onclick="setMode('drain', true)">Manual</button>
             </div>
-            <div class="row-action">
+            <div style="width:8px"></div>
+          </div>
+
+          <div class="pump-row">
+            <div></div>
+            <div class="btn-group">
               <button id="btnDrainOn" class="btn-action enabled" onclick="setState('drain', true)">ON</button>
               <button id="btnDrainOff" class="btn-action enabled" onclick="setState('drain', false)">OFF</button>
             </div>
           </div>
         </div>
+
       </div>
 
       <div class="card hist-card">
-        <div class="card-title">History (Last 20 Readings)</div>
+        <div class="card-title">History (Last 20 Readings) — split per sensor</div>
         <div class="history-grid">
           <div class="mini-chart card" style="padding:12px">
             <div style="font-weight:600;margin-bottom:8px;color:var(--muted)">Soil 1</div>
@@ -226,20 +222,27 @@
   let chartS1, chartS2, chartDr;
   let histS1, histS2, histDr;
 
+  // Helper: safe value
   const safe = (v, fallback=0) => (typeof v === 'number' ? v : fallback);
 
+  // Init charts
   function initCharts() {
-    // gauge creation
+    // Doughnut/gauge options
+    const gaugeOpts = {
+      type: 'doughnut',
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '78%',
+        plugins: { legend: { display: false }, tooltip: { enabled: false } }
+      }
+    };
+
     function createGauge(ctx, color){
       return new Chart(ctx, {
         type: 'doughnut',
         data: { datasets: [{ data: [0, 100], backgroundColor: [color, '#e6eef6'], borderWidth: 0 }] },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '78%',
-          plugins: { legend: { display: false }, tooltip: { enabled: false } }
-        }
+        options: gaugeOpts.options
       });
     }
 
@@ -247,10 +250,10 @@
     chartS2 = createGauge(document.getElementById('chartSoil2'), '#16a34a');
     chartDr = createGauge(document.getElementById('chartDrain'), '#0ea5e9');
 
-    // history small line charts
-    const lineOpts = (clr) => ({
+    // Small history line charts (one per metric)
+    const lineOpts = (labelColor) => ({
       type: 'line',
-      data: { labels: [], datasets: [{ label: '', data: [], borderColor: clr, backgroundColor: 'transparent', tension: 0.3, pointRadius: 2 }] },
+      data: { labels: [], datasets: [{ label: '', data: [], borderColor: labelColor, backgroundColor: 'transparent', tension: 0.3, pointRadius: 2 }] },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -267,6 +270,7 @@
     histDr = new Chart(document.getElementById('historyDrain'), lineOpts('#0ea5e9'));
   }
 
+  // Format time labels (HH:MM)
   function fmtTime(ts){
     const d = new Date(ts * 1000);
     const hh = String(d.getHours()).padStart(2,'0');
@@ -274,7 +278,7 @@
     return `${hh}:${mm}`;
   }
 
-  // Live listener
+  // Live data listener
   db.ref('devices/' + DEVICE_ID + '/live').on('value', (snap) => {
     document.getElementById('loader').style.display = 'none';
     document.getElementById('app').style.display = 'block';
@@ -283,20 +287,26 @@
     statusEl.title = 'online';
 
     const data = snap.val() || {};
+
     const s1 = safe(data.soil1);
     const s2 = safe(data.soil2);
     const dr = safe(data.drainage);
 
+    // Update numbers
     document.getElementById('valSoil1').innerText = `${s1}%`;
     document.getElementById('valSoil2').innerText = `${s2}%`;
     document.getElementById('valDrain').innerText = `${dr}%`;
 
-    chartS1.data.datasets[0].data = [Number.isFinite(s1) ? s1 : 0, 100 - (Number.isFinite(s1) ? s1 : 0)]; chartS1.update();
-    chartS2.data.datasets[0].data = [Number.isFinite(s2) ? s2 : 0, 100 - (Number.isFinite(s2) ? s2 : 0)]; chartS2.update();
-    chartDr.data.datasets[0].data = [Number.isFinite(dr) ? dr : 0, 100 - (Number.isFinite(dr) ? dr : 0)]; chartDr.update();
+    // Update gauges (guard for NaN)
+    chartS1.data.datasets[0].data = [Number.isFinite(s1) ? s1 : 0, 100 - (Number.isFinite(s1) ? s1 : 0)];
+    chartS1.update();
+    chartS2.data.datasets[0].data = [Number.isFinite(s2) ? s2 : 0, 100 - (Number.isFinite(s2) ? s2 : 0)];
+    chartS2.update();
+    chartDr.data.datasets[0].data = [Number.isFinite(dr) ? dr : 0, 100 - (Number.isFinite(dr) ? dr : 0)];
+    chartDr.update();
   });
 
-  // Control UI sync
+  // Control state -> update UI buttons properly
   db.ref('devices/' + DEVICE_ID + '/control').on('value', (snap) => {
     const c = snap.val() || {};
     updateControlUI('farm', !!c.farmManual, !!c.farmState);
@@ -310,39 +320,46 @@
     const btnOn = document.getElementById(`btn${cap}On`);
     const btnOff = document.getElementById(`btn${cap}Off`);
 
+    // Auto/Manual
     if(isManual){
       btnMan.classList.add('active'); btnAuto.classList.remove('active');
     } else {
       btnAuto.classList.add('active'); btnMan.classList.remove('active');
     }
 
+    // ON/OFF enable & highlight when manual
     if(isManual){
       btnOn.classList.add('enabled'); btnOff.classList.add('enabled');
-      if(state){ btnOn.classList.add('on'); btnOff.classList.remove('off'); }
-      else { btnOff.classList.add('off'); btnOn.classList.remove('on'); }
+      if(state){
+        btnOn.classList.add('on'); btnOff.classList.remove('off');
+      } else {
+        btnOff.classList.add('off'); btnOn.classList.remove('on');
+      }
     } else {
       btnOn.className = 'btn-action'; btnOff.className = 'btn-action';
     }
   }
 
-  // History listener
+  // History listener: split into three charts
   db.ref('devices/' + DEVICE_ID + '/history').limitToLast(20).on('value', (snap) => {
-    const labels = []; const a = [], b = [], c = [];
+    const labels = [];
+    const a = [], b = [], c = [];
     snap.forEach(child => {
       const v = child.val();
-      const ts = v && v.ts ? v.ts : Math.floor(Date.now()/1000);
+      const ts = v && v.ts ? v.ts : (Date.now()/1000)|0;
       labels.push(fmtTime(ts));
-      a.push(typeof v?.soil1 === 'number' ? v.soil1 : null);
-      b.push(typeof v?.soil2 === 'number' ? v.soil2 : null);
-      c.push(typeof v?.drainage === 'number' ? v.drainage : null);
+      a.push(safe(v.soil1));
+      b.push(safe(v.soil2));
+      c.push(safe(v.drainage));
     });
 
+    // Update each chart
     histS1.data.labels = labels; histS1.data.datasets[0].data = a; histS1.update();
     histS2.data.labels = labels; histS2.data.datasets[0].data = b; histS2.update();
     histDr.data.labels = labels; histDr.data.datasets[0].data = c; histDr.update();
   });
 
-  // Write funcs
+  // Write functions for control buttons
   window.setMode = (pump, manual) => {
     const key = pump + 'Manual';
     const updates = {}; updates[key] = manual;
@@ -355,7 +372,7 @@
     db.ref('devices/' + DEVICE_ID + '/control').update(updates);
   };
 
-  // init
+  // Boot
   initCharts();
 </script>
 </body>
