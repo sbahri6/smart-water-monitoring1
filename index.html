@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no" />
   <meta name="theme-color" content="#0b1220">
-  <title>Smart Water — Live (Malaysia TZ, Controls)</title>
+  <title>Smart Water — Live (Malaysia TZ)</title>
 
   <style>
     :root{
@@ -23,7 +23,7 @@
     .label{font-size:12px;color:var(--muted)}
     .big{font-size:20px;font-weight:600}
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    button{appearance:none;border:0;padding:8px 12px;border-radius:8px;background:#142032;color:var(--text);cursor:pointer;font-size:13px;min-width:110px;white-space:nowrap}
+    button{appearance:none;border:0;padding:8px 12px;border-radius:8px;background:#142032;color:var(--text);cursor:pointer;font-size:13px;min-width:90px;white-space:nowrap}
     button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.04)}
     .btn-on{background:var(--accent);color:#021617;border:1px solid rgba(0,0,0,0.12);font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.35)}
     footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
@@ -48,8 +48,8 @@
       <div class="card" style="flex:2 1 520px">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div class="label">History (last ~500 points) — Malaysia time</div>
-            <div class="small">Auto-refresh every 5s</div>
+            <div class="label">History (last ~500 points)</div>
+            <div class="small">Auto-refresh every 5s — times shown in Malaysia (GMT+8)</div>
           </div>
           <div>
             <button id="refreshBtn" class="secondary">Refresh</button>
@@ -90,7 +90,7 @@
 
           <hr style="opacity:.05;margin:12px 0" />
 
-          <div class="label">Controls (writes to /devices/&lt;DEVICE_ID&gt;/controls)</div>
+          <div class="label">Controls</div>
           <div class="controls" style="margin-top:8px">
             <div style="display:flex;flex-direction:column;gap:6px">
               <div class="small">Farm pump</div>
@@ -110,7 +110,7 @@
           </div>
 
           <div style="margin-top:12px" class="small">
-            Note: the ESP32 reads /controls and applies them. The web UI writes only to /controls — ESP reports real outputs in /status.
+            Note: ESP32 now reads these control flags and will obey manual mode.
           </div>
         </div>
 
@@ -124,12 +124,12 @@
     <footer>Built for speed • Replace API keys in the top of the page • Hosted on GitHub Pages</footer>
   </div>
 
-  <!-- Firebase + main logic -->
+  <!-- Firebase (modular) + main logic -->
   <script type="module">
     // ====== CONFIG - Replace these with your project's values ======
-    const FIREBASE_API_KEY = "AIzaSyCdl2doXjpZsmQZtWzdHWuG-4cTwSsEGOE"; // ← REPLACE
+    const FIREBASE_API_KEY = "AIzaSyCdl2doXjpZsmQZtWzdHWuG-4cTwSsEGOE"; // ← REPLACE if needed
     const DATABASE_URL = "https://drams-5854f-default-rtdb.firebaseio.com"; // ← REPLACE (no trailing slash)
-    const DEVICE_ID = "esp32_device_001"; // ← REPLACE
+    const DEVICE_ID = "esp32_device_001"; // ← REPLACE if needed
     // ===============================================================
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
@@ -144,25 +144,112 @@
     const statusEl = document.getElementById('status');
     const sessionInfo = document.getElementById('sessionInfo');
 
-    // write web startup info (same as before)
+    // Malaysia timezone formatter
+    const malaysiaFormatterShort = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kuala_Lumpur'
+    });
+    const malaysiaFormatterFull = new Intl.DateTimeFormat('en-GB', {
+      year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone: 'Asia/Kuala_Lumpur'
+    });
+
+    // Helper: write the page URL to /devices/DEVICE_ID/webUrl on each load
     async function publishStartupInfo(uid) {
       const p = `/devices/${DEVICE_ID}/webUrl`;
       const ts = Math.floor(Date.now()/1000);
-      const payload = { url: location.href, ua: navigator.userAgent, ts: ts, clientId: uid || "anon" };
-      try { await update(ref(db, p), payload); } catch(e) { console.warn('Publish startup failed', e); }
+      const payload = {
+        url: location.href,
+        ua: navigator.userAgent,
+        ts: ts,
+        clientId: uid || "anon"
+      };
+      try {
+        await update(ref(db, p), payload);
+        console.log('Published web URL', payload);
+      } catch(e) {
+        console.warn('Publish startup failed', e);
+      }
     }
 
-    // When web toggles, write to /controls (separate node)
-    async function writeControls(patchObj) {
-      try { await update(ref(db, `/devices/${DEVICE_ID}/controls`), patchObj); } catch(e) { console.warn('writeControls failed', e); }
+    // Utility: patch some keys in live object
+    async function patchLive(patchObj) {
+      try {
+        await update(ref(db, `/devices/${DEVICE_ID}/live`), patchObj);
+      } catch(e) {
+        console.warn('patchLive failed', e);
+      }
     }
 
-    // Listen + patch helper for status is not needed (ESP writes status)
-    async function patchLiveSensors(patchObj) {
-      try { await update(ref(db, `/devices/${DEVICE_ID}/live`), patchObj); } catch(e) { console.warn('patchLiveSensors failed', e); }
-    }
+    // ====== Charts & Gauges setup using Chart.js ======
+    const createLine = (ctx, label, color) => {
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [], // formatted Malaysian-time strings
+          datasets: [{
+            label,
+            data: [],
+            tension: 0.25,
+            pointRadius: 0,
+            borderWidth: 2,
+            borderColor: color
+          }]
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            title: { display: true, text: label, color: '#9fb2d1' },
+            tooltip: {
+              callbacks: {
+                title: (items) => {
+                  // items[0].label already contains Malaysia formatted string
+                  return items[0].label;
+                },
+                label: (item) => `${item.dataset.label}: ${item.formattedValue}%`
+              }
+            }
+          },
+          scales: {
+            x: {
+              display: true,
+              ticks: { color: '#9fb2d1', maxRotation: 45, autoSkip: true, maxTicksLimit: 6 },
+              grid: { color: 'rgba(255,255,255,0.03)' }
+            },
+            y: { min: 0, max: 100, ticks: { color: '#9fb2d1' }, grid: { color: 'rgba(255,255,255,0.03)' } }
+          }
+        }
+      });
+    };
 
-    // ----- charts + gauge plugin (same as previous "nice" gauge) -----
+    const createGauge = (ctx, label) => {
+      return new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: [label, 'rest'],
+          datasets: [{
+            data: [0, 100],
+            circumference: 180,
+            rotation: 270,
+            cutout: '70%',
+            borderWidth: 0
+          }]
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false },
+            niceGauge: { currentValue: 0, label: label } // used by plugin if present
+          }
+        }
+      });
+    };
+
+    // plugin from earlier "nice gauge" (draws zones/needle/text)
     const gaugePlugin = {
       id: 'niceGauge',
       afterDraw(chart) {
@@ -179,14 +266,18 @@
         const circumference = Math.PI;
         const value = Math.max(0, Math.min(100, cfg.currentValue ?? 0));
         function valueToAngle(v) { return rotation + (v / 100) * circumference; }
+
         ctx.save();
         ctx.lineCap = 'round';
+
+        // background arc
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(255,255,255,0.03)';
         ctx.lineWidth = radius * 0.18;
         ctx.arc(cx, cy, radius * 0.84, rotation, rotation + circumference, false);
         ctx.stroke();
         ctx.closePath();
+
         const zones = cfg.zones || [
           { from: 0, to: 60, color: '#10b981' },
           { from: 60, to: 85, color: '#f59e0b' },
@@ -203,17 +294,22 @@
           ctx.stroke();
           ctx.closePath();
         }
+
+        // highlight arc for current value
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(255,255,255,0.06)';
         ctx.lineWidth = radius * 0.03;
         ctx.arc(cx, cy, radius * 0.68, rotation, valueToAngle(value), false);
         ctx.stroke();
         ctx.closePath();
+
+        // needle
         const needleAngle = valueToAngle(value);
         const needleLen = radius * 0.62;
         const needleWidth = Math.max(2, radius * 0.02);
         const nx = cx + Math.cos(needleAngle) * needleLen;
         const ny = cy + Math.sin(needleAngle) * needleLen;
+
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(nx, ny);
@@ -222,6 +318,7 @@
         ctx.lineCap = 'round';
         ctx.stroke();
         ctx.closePath();
+
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(nx, ny);
@@ -230,62 +327,37 @@
         ctx.lineCap = 'round';
         ctx.stroke();
         ctx.closePath();
+
+        // pivot
         ctx.beginPath();
         ctx.fillStyle = '#ffffff';
         ctx.arc(cx, cy, Math.max(4, radius * 0.05), 0, Math.PI * 2);
         ctx.fill();
         ctx.closePath();
+
+        // center numeric
         ctx.fillStyle = '#e6eef8';
         ctx.font = `${Math.round(radius * 0.24)}px Inter, Roboto, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${Math.round(value)}%`, cx, cy - radius * 0.18);
+
+        // label
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
         ctx.font = `${Math.round(radius * 0.09)}px Inter, Roboto, sans-serif`;
         ctx.fillText(cfg.label || '', cx, cy + radius * 0.22);
+
         ctx.restore();
       }
     };
-    Chart.register(gaugePlugin);
 
-    const createLine = (ctx, label, color='#2dd4bf') => {
-      return new Chart(ctx, {
-        type: 'line',
-        data: { labels: [], datasets: [{ label, data: [], tension: 0.25, pointRadius: 0, borderWidth: 2, borderColor: color }] },
-        options: {
-          animation: false, responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, title: { display: true, text: label, color: '#9fb2d1' } },
-          scales: {
-            x: {
-              display: true,
-              ticks: { color: '#9fb2d1', maxRotation: 45, autoSkip: true, maxTicksLimit: 6 },
-              grid: { color: 'rgba(255,255,255,0.03)' }
-            },
-            y: { min: 0, max: 100, ticks: { color: '#9fb2d1' }, grid: { color: 'rgba(255,255,255,0.03)' } }
-          },
-          // tooltip: format timestamp to Malaysia timezone
-          interaction: { intersect: false, mode: 'index' },
-          plugins: {
-            tooltip: {
-              callbacks: {
-                title: (items) => {
-                  if (!items || !items.length) return '';
-                  const idx = items[0].dataIndex;
-                  const label = items[0].chart.data.labels[idx];
-                  return label;
-                },
-                label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y}%`
-              }
-            }
-          }
-        }
-      });
-    };
+    Chart.register(gaugePlugin);
 
     const soil1Chart = createLine(document.getElementById('soil1Chart').getContext('2d'), 'Soil 1 (%)', '#2dd4bf');
     const soil2Chart = createLine(document.getElementById('soil2Chart').getContext('2d'), 'Soil 2 (%)', '#f1c40f');
     const drainChart = createLine(document.getElementById('drainageChart').getContext('2d'), 'Drainage (%)', '#60a5fa');
 
+    // gauges
     function createGaugeChart(canvasEl, label) {
       const ctx = canvasEl.getContext('2d');
       const chart = new Chart(ctx, {
@@ -315,11 +387,11 @@
     function setGauge(g, val) {
       g.data.datasets[0].data[0] = val;
       g.data.datasets[0].data[1] = Math.max(0, 100 - val);
-      if (!g.options.plugins) g.options.plugins = {};
       g.options.plugins.niceGauge = g.options.plugins.niceGauge || {};
       g.options.plugins.niceGauge.currentValue = val;
       g.update('none');
     }
+
     function setText(id, txt) { const el = document.getElementById(id); if (el) el.textContent = txt; }
 
     // Buttons
@@ -331,24 +403,24 @@
 
     farmManualToggle.addEventListener('click', async () => {
       const cur = farmManualToggle.dataset.on === '1';
-      await writeControls({ farmManualMode: cur ? 0 : 1, controls_ts: Math.floor(Date.now()/1000) });
+      await patchLive({ farmManualMode: cur ? 0 : 1 });
     });
     farmDesiredToggle.addEventListener('click', async () => {
       const cur = farmDesiredToggle.dataset.on === '1';
-      await writeControls({ farmManualDesired: cur ? 0 : 1, controls_ts: Math.floor(Date.now()/1000) });
+      await patchLive({ farmManualDesired: cur ? 0 : 1 });
     });
     drainManualToggle.addEventListener('click', async () => {
       const cur = drainManualToggle.dataset.on === '1';
-      await writeControls({ drainManualMode: cur ? 0 : 1, controls_ts: Math.floor(Date.now()/1000) });
+      await patchLive({ drainManualMode: cur ? 0 : 1 });
     });
     drainDesiredToggle.addEventListener('click', async () => {
       const cur = drainDesiredToggle.dataset.on === '1';
-      await writeControls({ drainManualDesired: cur ? 0 : 1, controls_ts: Math.floor(Date.now()/1000) });
+      await patchLive({ drainManualDesired: cur ? 0 : 1 });
     });
 
     refreshBtn.addEventListener('click', () => { fetchAllHistory(); });
 
-    // Fetch history with Malaysia timezone formatting
+    // Fetch history
     async function fetchHistoryArray(name, maxPoints = 500) {
       const node = `devices/${DEVICE_ID}/history/${name}`;
       try {
@@ -366,17 +438,6 @@
       }
     }
 
-    // Malaysia timezone helper
-    const MALAYSIA_TZ = 'Asia/Kuala_Lumpur';
-    function formatTimeMs(tsSeconds) {
-      if (!tsSeconds) return '';
-      return new Date(tsSeconds * 1000).toLocaleTimeString('en-GB', { timeZone: MALAYSIA_TZ, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    }
-    function formatDateTimeMs(tsSeconds) {
-      if (!tsSeconds) return '';
-      return new Date(tsSeconds * 1000).toLocaleString('en-GB', { timeZone: MALAYSIA_TZ });
-    }
-
     async function fetchAllHistory() {
       statusEl.textContent = 'loading history...';
       const [s1, s2, d] = await Promise.all([
@@ -385,7 +446,10 @@
         fetchHistoryArray('drainage')
       ]);
       function applyToChart(chart, arr) {
-        chart.data.labels = arr.map((a,i) => a.ts ? formatTimeMs(a.ts) : `#${i+1}`);
+        chart.data.labels = arr.map((a,i) => {
+          if (a.ts) return malaysiaFormatterShort.format(new Date(a.ts * 1000));
+          return `#${i+1}`;
+        });
         chart.data.datasets[0].data = arr.map(a=>a.v);
         chart.update('none');
       }
@@ -395,35 +459,20 @@
       statusEl.textContent = 'live';
     }
 
-    // Listen to live sensors and status and controls nodes
-    const sensorsRef = ref(db, `/devices/${DEVICE_ID}/live`);
-    const statusRef = ref(db, `/devices/${DEVICE_ID}/status`);
-    const controlsRef = ref(db, `/devices/${DEVICE_ID}/controls`);
-
-    function applyLiveSensors(live) {
+    // Live listener
+    const liveRef = ref(db, `/devices/${DEVICE_ID}/live`);
+    function applyLiveData(live) {
       if (!live) return;
       const s1 = Number(live.soil1 ?? live.soil_1 ?? 0);
       const s2 = Number(live.soil2 ?? live.soil_2 ?? 0);
       const dr = Number(live.drainage ?? 0);
       setGauge(gsoil1, s1); setGauge(gsoil2, s2); setGauge(gdrain, dr);
       setText('gsoil1Val', `${s1}%`); setText('gsoil2Val', `${s2}%`); setText('gdrainVal', `${dr}%`);
-    }
 
-    function applyStatus(stat) {
-      if (!stat) return;
-      const farmOut = stat.farmPumpOut ?? stat.farmPump ?? stat.farmOut ?? '?';
-      const drainOut = stat.drainPumpOut ?? stat.drainPump ?? stat.drainOut ?? '?';
-      // show in sessionInfo
-      const ts = stat.ts ? formatDateTimeMs(stat.ts) : '—';
-      sessionInfo.textContent = `Status ts: ${ts} • farmOut:${farmOut} drainOut:${drainOut}`;
-    }
-
-    function applyControls(ctrl) {
-      if (!ctrl) return;
-      const fm = ctrl.farmManualMode ? 1 : 0;
-      const fd = ctrl.farmManualDesired ? 1 : 0;
-      const dm = ctrl.drainManualMode ? 1 : 0;
-      const dd = ctrl.drainManualDesired ? 1 : 0;
+      const fm = live.farmManualMode ? 1 : 0;
+      const fd = live.farmManualDesired ? 1 : 0;
+      const dm = live.drainManualMode ? 1 : 0;
+      const dd = live.drainManualDesired ? 1 : 0;
 
       farmManualToggle.dataset.on = fm ? '1' : '0';
       farmManualToggle.classList.toggle('btn-on', fm===1);
@@ -444,20 +493,25 @@
       drainDesiredToggle.classList.toggle('btn-on', dd===1);
       drainDesiredToggle.classList.toggle('secondary', dd===0);
       drainDesiredToggle.textContent = `Desired: ${dd ? 'ON' : 'OFF'}`;
+
+      const ts = live.ts ? malaysiaFormatterFull.format(new Date(live.ts * 1000)) : '—';
+      sessionInfo.textContent = `Live ts: ${ts} • farmOut:${live.farmPumpOut??'?'} drainOut:${live.drainPumpOut??'?'}`;
     }
 
-    // attach auth and listeners
+    // Attach firebase auth + listeners
     signInAnonymously(auth).then(() => {
       onAuthStateChanged(auth, async (user) => {
         if (user) {
           statusEl.textContent = 'authenticated';
           await publishStartupInfo(user.uid);
-
-          onValue(sensorsRef, (snapshot) => { applyLiveSensors(snapshot.val()); }, (err) => { console.warn('sensors onValue error', err); });
-          onValue(statusRef, (snapshot) => { applyStatus(snapshot.val()); }, (err) => { console.warn('status onValue error', err); });
-          onValue(controlsRef, (snapshot) => { applyControls(snapshot.val()); }, (err) => { console.warn('controls onValue error', err); });
-
+          onValue(liveRef, (snapshot) => {
+            const v = snapshot.val();
+            applyLiveData(v);
+          }, (err) => {
+            console.warn('onValue error', err);
+          });
           fetchAllHistory();
+          // refresh history periodically
           setInterval(fetchAllHistory, 5000);
         } else {
           statusEl.textContent = 'signed out';
@@ -469,8 +523,10 @@
     });
 
     // initial UI defaults
-    farmManualToggle.dataset.on = '0'; farmDesiredToggle.dataset.on = '0';
-    drainManualToggle.dataset.on = '0'; drainDesiredToggle.dataset.on = '0';
+    farmManualToggle.dataset.on = '0';
+    farmDesiredToggle.dataset.on = '0';
+    drainManualToggle.dataset.on = '0';
+    drainDesiredToggle.dataset.on = '0';
   </script>
 
   <script>
@@ -478,7 +534,7 @@
     const hint = document.createElement('div');
     hint.className = 'small';
     hint.style.marginTop = '6px';
-    hint.innerHTML = 'ESP32 must be updated to read /devices/&lt;DEVICE_ID&gt;/controls and write outputs to /devices/&lt;DEVICE_ID&gt;/status. See ESP32 sketch below.';
+    hint.innerHTML = 'ESP32 reads the manual flags now — web toggles should control pumps when the device is online.';
     footer.appendChild(hint);
   </script>
 </body>
