@@ -1,515 +1,259 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no" />
-  <meta name="theme-color" content="#0b1220">
-  <title>Smart Water — Live (Fixed Gauges/Layout)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Water System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <style>
-    :root{
-      --bg:#0b1220; --card:#0f1724; --text:#e6eef8; --muted:#9fb2d1;
-      --accent:#2dd4bf; --accent-dark:#02867a;
-    }
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%}
-    .wrap{max-width:1100px;margin:0 auto;padding:12px;box-sizing:border-box}
-    header{display:flex;gap:12px;align-items:center;justify-content:space-between}
-    h1{font-size:16px;margin:0}
-    /* Use grid for reliable layout and to avoid overlap */
-    .row{display:grid;grid-template-columns: 1fr 360px;gap:12px;margin-top:12px}
-    @media (max-width:880px) {
-      .row{grid-template-columns: 1fr; }
-    }
-    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:10px;padding:10px;box-sizing:border-box;min-width:0}
-    /* Chart containers */
-    .historyCard { display:flex;flex-direction:column; gap:10px; min-height:420px; }
-    .chartWrap { width:100%; height:140px; box-sizing:border-box; }
-    @media(min-width:900px){ .chartWrap { height:200px; } }
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #0f172a;
+        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        
+        /* Header */
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { margin: 0; font-weight: 600; color: var(--primary); }
+        .status-dot { height: 10px; width: 10px; background-color: #ccc; border-radius: 50%; display: inline-block; }
+        .online { background-color: var(--success); box-shadow: 0 0 8px var(--success); }
 
-    /* Gauges column */
-    .rightColumn { display:flex; flex-direction:column; gap:12px; }
-    .gaugeBox { padding:12px; display:flex; flex-direction:column; gap:8px; }
-    .gaugeWrap{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-    .gaugeCard{flex:1 1 100px;min-width:100px;display:flex;flex-direction:column;align-items:center;gap:6px}
-    /* ensure canvases have constrained heights to avoid overlap */
-    .gaugeCard canvas { width:100% !important; height:130px !important; display:block; }
-    .chartWrap canvas { width:100% !important; height:100% !important; display:block; }
+        /* Cards */
+        .card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
 
-    .label{font-size:12px;color:var(--muted)}
-    .big{font-size:18px;font-weight:600}
-    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    button{appearance:none;border:0;padding:8px 12px;border-radius:8px;background:#142032;color:var(--text);cursor:pointer;font-size:13px;min-width:90px;white-space:nowrap}
-    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.04)}
-    .btn-on{background:var(--accent);color:#021617;border:1px solid rgba(0,0,0,0.12);font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.35)}
-    footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
-    .small{font-size:12px;color:var(--muted)}
-    hr{border:none;border-top:1px solid rgba(255,255,255,0.03)}
-  </style>
+        /* Gauges Grid */
+        .gauge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
+        .gauge-item h4 { margin: 5px 0; font-size: 0.9rem; color: #64748b; }
+        .gauge-val { font-size: 1.2rem; font-weight: bold; margin-top: -40px; display: block; }
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        /* Controls */
+        .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .toggle-label { font-weight: 500; }
+        .btn-group { display: flex; gap: 5px; }
+        
+        button { padding: 8px 16px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-mode { background: #e2e8f0; color: #64748b; }
+        .btn-mode.active { background: var(--primary); color: white; }
+        
+        .btn-action { background: #e2e8f0; color: #94a3b8; opacity: 0.5; pointer-events: none; }
+        .btn-action.enabled { opacity: 1; pointer-events: all; }
+        .btn-action.on { background: var(--success); color: white; }
+        .btn-action.off { background: var(--danger); color: white; }
+
+        /* Charts */
+        canvas { width: 100% !important; height: 200px !important; }
+        
+        /* Loading */
+        #loader { text-align: center; padding: 50px; color: #64748b; }
+    </style>
 </head>
 <body>
-  <div class="wrap">
+
+<div class="container">
     <header>
-      <h1>Smart Water • Live</h1>
-      <div class="small" id="status">connecting...</div>
+        <h1>💧 Smart Water <span id="connStatus" class="status-dot"></span></h1>
+        <p style="font-size: 0.9rem; color: #64748b;">Live Dashboard</p>
     </header>
 
-    <div class="row">
-      <!-- LEFT: history -->
-      <div class="card historyCard">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div class="label">History (last ~500 points)</div>
-            <div class="small">Auto-refresh every 5s — Malaysia time (GMT+8)</div>
-          </div>
-          <div>
-            <button id="refreshBtn" class="secondary">Refresh</button>
-          </div>
-        </div>
+    <div id="loader">Connecting to System...</div>
 
-        <div class="chartWrap card" style="padding:8px;">
-          <canvas id="soil1Chart"></canvas>
-        </div>
-        <div class="chartWrap card" style="padding:8px;">
-          <canvas id="soil2Chart"></canvas>
-        </div>
-        <div class="chartWrap card" style="padding:8px;">
-          <canvas id="drainageChart"></canvas>
-        </div>
-      </div>
-
-      <!-- RIGHT: gauges + controls -->
-      <div class="rightColumn">
-        <div class="card gaugeBox">
-          <div class="label">Live gauges</div>
-          <div class="gaugeWrap" style="margin-top:8px">
-            <div class="gaugeCard">
-              <canvas id="gsoil1"></canvas>
-              <div class="label">Soil 1</div>
-              <div class="big" id="gsoil1Val">--%</div>
+    <div id="app" style="display:none;">
+        <div class="card">
+            <div class="card-title">Live Sensors</div>
+            <div class="gauge-grid">
+                <div class="gauge-item">
+                    <canvas id="chartSoil1"></canvas>
+                    <span class="gauge-val" id="valSoil1">--%</span>
+                    <h4>Soil 1</h4>
+                </div>
+                <div class="gauge-item">
+                    <canvas id="chartSoil2"></canvas>
+                    <span class="gauge-val" id="valSoil2">--%</span>
+                    <h4>Soil 2</h4>
+                </div>
+                <div class="gauge-item">
+                    <canvas id="chartDrain"></canvas>
+                    <span class="gauge-val" id="valDrain">--%</span>
+                    <h4>Drainage</h4>
+                </div>
             </div>
-            <div class="gaugeCard">
-              <canvas id="gsoil2"></canvas>
-              <div class="label">Soil 2</div>
-              <div class="big" id="gsoil2Val">--%</div>
-            </div>
-            <div class="gaugeCard">
-              <canvas id="gdrain"></canvas>
-              <div class="label">Drainage</div>
-              <div class="big" id="gdrainVal">--%</div>
-            </div>
-          </div>
+        </div>
 
-          <hr style="opacity:.05;margin:12px 0" />
-
-          <div class="label">Controls</div>
-          <div class="controls" style="margin-top:8px">
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <div class="small">Farm pump</div>
-              <div style="display:flex;gap:6px">
-                <button id="farmManualToggle" class="secondary">Manual: Off</button>
-                <button id="farmDesiredToggle" class="secondary">Desired: OFF</button>
-              </div>
+        <div class="card">
+            <div class="card-title">Pump Control</div>
+            
+            <div class="control-row">
+                <span class="toggle-label">Farm Pump</span>
+                <div class="btn-group">
+                    <button id="btnFarmAuto" class="btn-mode active" onclick="setMode('farm', false)">Auto</button>
+                    <button id="btnFarmMan" class="btn-mode" onclick="setMode('farm', true)">Manual</button>
+                </div>
+                <div class="btn-group">
+                    <button id="btnFarmOn" class="btn-action enabled" onclick="setState('farm', true)">ON</button>
+                    <button id="btnFarmOff" class="btn-action enabled" onclick="setState('farm', false)">OFF</button>
+                </div>
             </div>
 
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <div class="small">Drainage pump</div>
-              <div style="display:flex;gap:6px">
-                <button id="drainManualToggle" class="secondary">Manual: Off</button>
-                <button id="drainDesiredToggle" class="secondary">Desired: OFF</button>
-              </div>
+            <div class="control-row">
+                <span class="toggle-label">Drainage Pump</span>
+                <div class="btn-group">
+                    <button id="btnDrainAuto" class="btn-mode active" onclick="setMode('drain', false)">Auto</button>
+                    <button id="btnDrainMan" class="btn-mode" onclick="setMode('drain', true)">Manual</button>
+                </div>
+                <div class="btn-group">
+                    <button id="btnDrainOn" class="btn-action enabled" onclick="setState('drain', true)">ON</button>
+                    <button id="btnDrainOff" class="btn-action enabled" onclick="setState('drain', false)">OFF</button>
+                </div>
             </div>
-          </div>
-
-          <div style="margin-top:12px" class="small">
-            ESP32 reads these control flags and will obey manual mode.
-          </div>
         </div>
 
-        <div class="card" style="padding:12px">
-          <div class="label">Session</div>
-          <div class="small" id="sessionInfo">---</div>
+        <div class="card">
+            <div class="card-title">History (Last 20 Readings)</div>
+            <canvas id="historyChart"></canvas>
         </div>
-      </div>
     </div>
+</div>
 
-    <footer>Built for speed • Replace API keys in the top of the page • Hosted on GitHub Pages</footer>
-  </div>
-
-  <!-- Firebase + main logic -->
-  <script type="module">
-    // ====== CONFIG - Replace these with your project's values ======
-    const FIREBASE_API_KEY = "AIzaSyCdl2doXjpZsmQZtWzdHWuG-4cTwSsEGOE"; // ← REPLACE
-    const DATABASE_URL = "https://drams-5854f-default-rtdb.firebaseio.com"; // ← REPLACE (no trailing slash)
-    const DEVICE_ID = "esp32_device_001"; // ← REPLACE
-    // ===============================================================
-
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getDatabase, ref, onValue, update, set, get, child } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-
-    const firebaseConfig = { apiKey: FIREBASE_API_KEY, databaseURL: DATABASE_URL };
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const auth = getAuth(app);
-
-    const statusEl = document.getElementById('status');
-    const sessionInfo = document.getElementById('sessionInfo');
-
-    // Malaysia timezone formatter
-    const malaysiaFormatterShort = new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kuala_Lumpur'
-    });
-    const malaysiaFormatterFull = new Intl.DateTimeFormat('en-GB', {
-      year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone: 'Asia/Kuala_Lumpur'
-    });
-
-    async function publishStartupInfo(uid) {
-      const p = `/devices/${DEVICE_ID}/webUrl`;
-      const ts = Math.floor(Date.now()/1000);
-      const payload = { url: location.href, ua: navigator.userAgent, ts: ts, clientId: uid || "anon" };
-      try { await update(ref(db, p), payload); } catch(e) { console.warn('Publish startup failed', e); }
-    }
-
-    async function patchLive(patchObj) {
-      try { await update(ref(db, `/devices/${DEVICE_ID}/live`), patchObj); } catch(e) { console.warn('patchLive failed', e); }
-    }
-
-    /******* Chart & Gauge setup *******/
-
-    // Create a standard line chart (history)
-    const createLine = (ctx, label, color) => {
-      return new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: [],
-          datasets: [{ label, data: [], tension: 0.25, pointRadius: 0, borderWidth: 2, borderColor: color }]
-        },
-        options: {
-          animation: { duration: 250 },
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            title: { display: true, text: label, color: '#9fb2d1' },
-            tooltip: {
-              callbacks: {
-                title: (items) => items[0].label,
-                label: (item) => `${item.dataset.label}: ${item.formattedValue}%`
-              }
-            }
-          },
-          scales: {
-            x: {
-              display: true,
-              ticks: { color: '#9fb2d1', maxRotation: 45, autoSkip: true, maxTicksLimit: 6 },
-              grid: { color: 'rgba(255,255,255,0.03)' }
-            },
-            y: { min: 0, max: 100, ticks: { color: '#9fb2d1' }, grid: { color: 'rgba(255,255,255,0.03)' } }
-          }
-        }
-      });
+<script>
+    // 1. FIREBASE CONFIGURATION (Replace with yours)
+    const firebaseConfig = {
+        apiKey: "AIzaSyCdl2doXjpZsmQZtWzdHWuG-4cTwSsEGOE",
+        authDomain: "drams-5854f-default-rtdb.firebaseapp.com",
+        databaseURL: "https://drams-5854f-default-rtdb.firebaseio.com",
+        projectId: "drams-5854f",
     };
 
-    const soil1Chart = createLine(document.getElementById('soil1Chart').getContext('2d'), 'Soil 1 (%)', '#2dd4bf');
-    const soil2Chart = createLine(document.getElementById('soil2Chart').getContext('2d'), 'Soil 2 (%)', '#f1c40f');
-    const drainChart = createLine(document.getElementById('drainageChart').getContext('2d'), 'Drainage (%)', '#60a5fa');
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const DEVICE_ID = "esp32_device_001";
 
-    // Nice gauge plugin (safe-guards & robust)
-    const gaugePlugin = {
-      id: 'niceGauge',
-      afterDraw(chart) {
-        // make sure layout is ready
-        if (!chart || !chart.ctx || !chart.chartArea) return;
-        const cfg = chart.options.plugins && chart.options.plugins.niceGauge;
-        if (!cfg) return;
+    // Charts objects
+    let chartS1, chartS2, chartDr, histChart;
 
-        // sometimes chartArea has zero sizes during first frame — bail if so
-        const ca = chart.chartArea;
-        if (ca.right - ca.left <= 0 || ca.bottom - ca.top <= 0) return;
+    // --- SETUP CHARTS ---
+    function initCharts() {
+        const gaugeOpts = { cutout: '80%', plugins: { tooltip: { enabled: false }, legend: { display: false } } };
+        const createGauge = (ctx, color) => new Chart(ctx, { type: 'doughnut', data: { datasets: [{ data: [0, 100], backgroundColor: [color, '#e2e8f0'], borderWidth: 0 }] }, options: gaugeOpts });
 
-        const ctx = chart.ctx;
-        const cx = (ca.left + ca.right) / 2;
-        const cy = ca.bottom - 6;
-        const radius = Math.min((ca.right - ca.left) / 2, (ca.bottom - ca.top)) * 0.9;
-        const rotation = -Math.PI / 2;
-        const circumference = Math.PI;
-        const value = Math.max(0, Math.min(100, cfg.currentValue ?? 0));
-        function valueToAngle(v) { return rotation + (v / 100) * circumference; }
+        chartS1 = createGauge(document.getElementById('chartSoil1'), '#22c55e'); // Green
+        chartS2 = createGauge(document.getElementById('chartSoil2'), '#22c55e');
+        chartDr = createGauge(document.getElementById('chartDrain'), '#0ea5e9'); // Blue
 
-        ctx.save();
-        ctx.lineCap = 'round';
-
-        // background arc
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-        ctx.lineWidth = radius * 0.18;
-        ctx.arc(cx, cy, radius * 0.84, rotation, rotation + circumference, false);
-        ctx.stroke();
-        ctx.closePath();
-
-        // colored zones
-        const zones = cfg.zones || [
-          { from: 0, to: 60, color: '#10b981' },
-          { from: 60, to: 85, color: '#f59e0b' },
-          { from: 85, to: 100, color: '#ef4444' }
-        ];
-        const zoneWidth = radius * 0.18;
-        for (const z of zones) {
-          const a0 = valueToAngle(z.from);
-          const a1 = valueToAngle(z.to);
-          ctx.beginPath();
-          ctx.strokeStyle = z.color;
-          ctx.lineWidth = zoneWidth;
-          ctx.arc(cx, cy, radius * 0.84, a0, a1, false);
-          ctx.stroke();
-          ctx.closePath();
-        }
-
-        // highlight arc for current value
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-        ctx.lineWidth = radius * 0.03;
-        ctx.arc(cx, cy, radius * 0.68, rotation, valueToAngle(value), false);
-        ctx.stroke();
-        ctx.closePath();
-
-        // needle
-        const needleAngle = valueToAngle(value);
-        const needleLen = radius * 0.62;
-        const needleWidth = Math.max(2, radius * 0.02);
-        const nx = cx + Math.cos(needleAngle) * needleLen;
-        const ny = cy + Math.sin(needleAngle) * needleLen;
-
-        // shadow
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(nx, ny);
-        ctx.lineWidth = needleWidth + 1;
-        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-        ctx.lineCap = 'round';
-        ctx.stroke();
-        ctx.closePath();
-
-        // main needle
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(nx, ny);
-        ctx.lineWidth = needleWidth;
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineCap = 'round';
-        ctx.stroke();
-        ctx.closePath();
-
-        // pivot circle
-        ctx.beginPath();
-        ctx.fillStyle = '#ffffff';
-        ctx.arc(cx, cy, Math.max(4, radius * 0.05), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.closePath();
-
-        // center numeric
-        ctx.fillStyle = '#e6eef8';
-        ctx.font = `${Math.round(radius * 0.22)}px Inter, Roboto, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${Math.round(value)}%`, cx, cy - radius * 0.18);
-
-        // label
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font = `${Math.round(radius * 0.08)}px Inter, Roboto, sans-serif`;
-        ctx.fillText(cfg.label || '', cx, cy + radius * 0.22);
-
-        ctx.restore();
-      }
-    };
-    Chart.register(gaugePlugin);
-
-    // Create gauge chart wrapper (doughnut base + plugin)
-    function createGaugeChart(canvasEl, label) {
-      const ctx = canvasEl.getContext('2d');
-      const chart = new Chart(ctx, {
-        type: 'doughnut',
-        data: { labels: [label, 'rest'], datasets: [{ data: [0,100], backgroundColor: ['rgba(0,0,0,0)','rgba(0,0,0,0)'], borderWidth: 0 }] },
-        options: {
-          animation: { duration: 300 },
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '70%',
-          rotation: -90 * (Math.PI/180),
-          circumference: 180 * (Math.PI/180),
-          plugins: { legend: { display: false }, tooltip: { enabled: false }, niceGauge: { currentValue: 0, label: label } }
-        }
-      });
-      // force layout now so plugin can draw reliably
-      chart.resize();
-      chart.update();
-      return chart;
+        // History Line Chart
+        histChart = new Chart(document.getElementById('historyChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [
+                { label: 'Soil 1', data: [], borderColor: '#22c55e', tension: 0.4 },
+                { label: 'Soil 2', data: [], borderColor: '#16a34a', borderDash: [5,5], tension: 0.4 },
+                { label: 'Drain', data: [], borderColor: '#0ea5e9', tension: 0.4 }
+            ]},
+            options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+        });
     }
 
-    const gsoil1 = createGaugeChart(document.getElementById('gsoil1'), 'Soil 1');
-    const gsoil2 = createGaugeChart(document.getElementById('gsoil2'), 'Soil 2');
-    const gdrain = createGaugeChart(document.getElementById('gdrain'), 'Drain');
+    // --- FIREBASE LISTENERS ---
+    
+    // 1. Live Data
+    db.ref('devices/' + DEVICE_ID + '/live').on('value', (snap) => {
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('connStatus').classList.add('online');
+        
+        const data = snap.val() || {};
+        
+        // Update Numbers
+        document.getElementById('valSoil1').innerText = (data.soil1 || 0) + '%';
+        document.getElementById('valSoil2').innerText = (data.soil2 || 0) + '%';
+        document.getElementById('valDrain').innerText = (data.drainage || 0) + '%';
 
-    // Robust setGauge: set value, resize (if needed) and update (causes plugin to repaint)
-    function setGauge(g, val) {
-      g.data.datasets[0].data[0] = val;
-      g.data.datasets[0].data[1] = Math.max(0, 100 - val);
-      if (!g.options.plugins) g.options.plugins = {};
-      g.options.plugins.niceGauge = g.options.plugins.niceGauge || {};
-      g.options.plugins.niceGauge.currentValue = val;
-      // ensure chart layout is correct then update
-      try { g.resize(); } catch(e) {}
-      g.update();
-    }
-
-    function setText(id, txt) { const el = document.getElementById(id); if (el) el.textContent = txt; }
-
-    /******* Buttons & Fetch helpers *******/
-
-    const farmManualToggle = document.getElementById('farmManualToggle');
-    const farmDesiredToggle = document.getElementById('farmDesiredToggle');
-    const drainManualToggle = document.getElementById('drainManualToggle');
-    const drainDesiredToggle = document.getElementById('drainDesiredToggle');
-    const refreshBtn = document.getElementById('refreshBtn');
-
-    farmManualToggle.addEventListener('click', async () => { const cur = farmManualToggle.dataset.on === '1'; await patchLive({ farmManualMode: cur ? 0 : 1 }); });
-    farmDesiredToggle.addEventListener('click', async () => { const cur = farmDesiredToggle.dataset.on === '1'; await patchLive({ farmManualDesired: cur ? 0 : 1 }); });
-    drainManualToggle.addEventListener('click', async () => { const cur = drainManualToggle.dataset.on === '1'; await patchLive({ drainManualMode: cur ? 0 : 1 }); });
-    drainDesiredToggle.addEventListener('click', async () => { const cur = drainDesiredToggle.dataset.on === '1'; await patchLive({ drainManualDesired: cur ? 0 : 1 }); });
-
-    refreshBtn.addEventListener('click', () => { fetchAllHistory(); });
-
-    // ===== history fetching & time formatting (Malaysia) =====
-    const malaysiaFormatterShort = new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kuala_Lumpur'
-    });
-    const malaysiaFormatterFull = new Intl.DateTimeFormat('en-GB', {
-      year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone: 'Asia/Kuala_Lumpur'
+        // Update Gauge Rings
+        chartS1.data.datasets[0].data = [data.soil1, 100 - data.soil1]; chartS1.update();
+        chartS2.data.datasets[0].data = [data.soil2, 100 - data.soil2]; chartS2.update();
+        chartDr.data.datasets[0].data = [data.drainage, 100 - data.drainage]; chartDr.update();
     });
 
-    async function fetchHistoryArray(name, maxPoints = 500) {
-      const node = `devices/${DEVICE_ID}/history/${name}`;
-      try {
-        const snap = await get(child(ref(db), node));
-        if (!snap.exists()) return [];
-        const obj = snap.val();
-        const arr = Object.values(obj)
-                      .filter(x => x && (typeof x.v !== 'undefined'))
-                      .map(x => ({v: Number(x.v), ts: Number(x.ts) || 0}))
-                      .sort((a,b)=>a.ts - b.ts);
-        return arr.slice(Math.max(0, arr.length - maxPoints));
-      } catch(e) {
-        console.warn('fetchHistoryArray error', e);
-        return [];
-      }
-    }
+    // 2. Control State (Sync UI buttons with DB)
+    db.ref('devices/' + DEVICE_ID + '/control').on('value', (snap) => {
+        const c = snap.val() || {};
+        updateControlUI('farm', c.farmManual, c.farmState);
+        updateControlUI('drain', c.drainManual, c.drainState);
+    });
 
-    async function fetchAllHistory() {
-      statusEl.textContent = 'loading history...';
-      const [s1, s2, d] = await Promise.all([
-        fetchHistoryArray('soil1'),
-        fetchHistoryArray('soil2'),
-        fetchHistoryArray('drainage')
-      ]);
-      function applyToChart(chart, arr) {
-        chart.data.labels = arr.map((a,i) => a.ts ? malaysiaFormatterShort.format(new Date(a.ts * 1000)) : `#${i+1}`);
-        chart.data.datasets[0].data = arr.map(a=>a.v);
-        chart.update();
-      }
-      applyToChart(soil1Chart, s1);
-      applyToChart(soil2Chart, s2);
-      applyToChart(drainChart, d);
-      statusEl.textContent = 'live';
-    }
+    // 3. History Data
+    db.ref('devices/' + DEVICE_ID + '/history').limitToLast(20).on('value', (snap) => {
+        const labels = [];
+        const s1 = [], s2 = [], dr = [];
+        
+        snap.forEach(child => {
+            const val = child.val();
+            const date = new Date(val.ts * 1000);
+            labels.push(date.getHours() + ':' + date.getMinutes());
+            s1.push(val.soil1);
+            s2.push(val.soil2);
+            dr.push(val.drainage);
+        });
 
-    /******* Firebase wiring *******/
-    const liveRef = ref(db, `/devices/${DEVICE_ID}/live`);
+        histChart.data.labels = labels;
+        histChart.data.datasets[0].data = s1;
+        histChart.data.datasets[1].data = s2;
+        histChart.data.datasets[2].data = dr;
+        histChart.update();
+    });
 
-    function applyLiveData(live) {
-      if (!live) return;
-      const s1 = Number(live.soil1 ?? live.soil_1 ?? 0);
-      const s2 = Number(live.soil2 ?? live.soil_2 ?? 0);
-      const dr = Number(live.drainage ?? 0);
+    // --- UI FUNCTIONS ---
 
-      // update gauges (robust)
-      setGauge(gsoil1, s1);
-      setGauge(gsoil2, s2);
-      setGauge(gdrain, dr);
+    function updateControlUI(pump, isManual, state) {
+        // Auto/Manual Buttons
+        document.getElementById(`btn${capitalize(pump)}Auto`).className = isManual ? 'btn-mode' : 'btn-mode active';
+        document.getElementById(`btn${capitalize(pump)}Man`).className = isManual ? 'btn-mode active' : 'btn-mode';
 
-      setText('gsoil1Val', `${s1}%`);
-      setText('gsoil2Val', `${s2}%`);
-      setText('gdrainVal', `${dr}%`);
-
-      // reflect manual flags
-      const fm = live.farmManualMode ? 1 : 0;
-      const fd = live.farmManualDesired ? 1 : 0;
-      const dm = live.drainManualMode ? 1 : 0;
-      const dd = live.drainManualDesired ? 1 : 0;
-
-      farmManualToggle.dataset.on = fm ? '1' : '0';
-      farmManualToggle.classList.toggle('btn-on', fm===1);
-      farmManualToggle.classList.toggle('secondary', fm===0);
-      farmManualToggle.textContent = `Manual: ${fm ? 'On' : 'Off'}`;
-
-      farmDesiredToggle.dataset.on = fd ? '1' : '0';
-      farmDesiredToggle.classList.toggle('btn-on', fd===1);
-      farmDesiredToggle.classList.toggle('secondary', fd===0);
-      farmDesiredToggle.textContent = `Desired: ${fd ? 'ON' : 'OFF'}`;
-
-      drainManualToggle.dataset.on = dm ? '1' : '0';
-      drainManualToggle.classList.toggle('btn-on', dm===1);
-      drainManualToggle.classList.toggle('secondary', dm===0);
-      drainManualToggle.textContent = `Manual: ${dm ? 'On' : 'Off'}`;
-
-      drainDesiredToggle.dataset.on = dd ? '1' : '0';
-      drainDesiredToggle.classList.toggle('btn-on', dd===1);
-      drainDesiredToggle.classList.toggle('secondary', dd===0);
-      drainDesiredToggle.textContent = `Desired: ${dd ? 'ON' : 'OFF'}`;
-
-      const ts = live.ts ? malaysiaFormatterFull.format(new Date(live.ts * 1000)) : '—';
-      sessionInfo.textContent = `Live ts: ${ts} • farmOut:${live.farmPumpOut??'?'} drainOut:${live.drainPumpOut??'?'}`;
-    }
-
-    // auth + listen
-    signInAnonymously(auth).then(() => {
-      onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          statusEl.textContent = 'authenticated';
-          await publishStartupInfo(user.uid);
-          onValue(liveRef, (snapshot) => { const v = snapshot.val(); applyLiveData(v); }, (err) => { console.warn('onValue error', err); });
-          fetchAllHistory();
-          setInterval(fetchAllHistory, 5000);
+        // ON/OFF Buttons (Visual Only)
+        const btnOn = document.getElementById(`btn${capitalize(pump)}On`);
+        const btnOff = document.getElementById(`btn${capitalize(pump)}Off`);
+        
+        // Enable/Disable buttons based on Manual Mode
+        if(isManual) {
+            btnOn.classList.add('enabled');
+            btnOff.classList.add('enabled');
+            
+            // Highlight active state
+            btnOn.className = state ? 'btn-action enabled on' : 'btn-action enabled';
+            btnOff.className = !state ? 'btn-action enabled off' : 'btn-action enabled';
         } else {
-          statusEl.textContent = 'signed out';
+            btnOn.className = 'btn-action';
+            btnOff.className = 'btn-action';
         }
-      });
-    }).catch((err) => {
-      statusEl.textContent = 'auth failed';
-      console.error('auth failed', err);
-    });
+    }
 
-    // initial defaults
-    farmManualToggle.dataset.on = '0';
-    farmDesiredToggle.dataset.on = '0';
-    drainManualToggle.dataset.on = '0';
-    drainDesiredToggle.dataset.on = '0';
+    // --- WRITE TO FIREBASE ---
 
-    // also ensure gauges reflow on orientation change / resize
-    window.addEventListener('resize', () => {
-      try { gsoil1.resize(); gsoil2.resize(); gdrain.resize(); } catch(e) {}
-    });
-  </script>
+    window.setMode = (pump, manual) => {
+        let key = pump + 'Manual';
+        let updates = {}; updates[key] = manual;
+        db.ref('devices/' + DEVICE_ID + '/control').update(updates);
+    };
 
-  <script>
-    const footer = document.querySelector('footer');
-    const hint = document.createElement('div');
-    hint.className = 'small';
-    hint.style.marginTop = '6px';
-    hint.innerHTML = 'If gauges still overlap on your device, try clearing the browser cache and reload once — the layout fixes are designed to avoid overlap at all widths.';
-    footer.appendChild(hint);
-  </script>
+    window.setState = (pump, state) => {
+        let key = pump + 'State';
+        let updates = {}; updates[key] = state;
+        db.ref('devices/' + DEVICE_ID + '/control').update(updates);
+    };
+
+    function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+    // Start
+    initCharts();
+
+</script>
 </body>
 </html>
