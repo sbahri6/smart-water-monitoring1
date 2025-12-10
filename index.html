@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Disable zoom: user-scalable/no + max-scale=1 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Smart Water System</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
@@ -22,6 +23,7 @@
     }
 
     *{box-sizing:border-box}
+    html,body{height:100%}
     body{
       margin:0;
       font-family:'Inter',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
@@ -30,6 +32,8 @@
       -webkit-font-smoothing:antialiased;
       -moz-osx-font-smoothing:grayscale;
       line-height:1.3;
+      /* disable double-tap zoom in some browsers (additional) */
+      touch-action: manipulation;
     }
 
     .container{
@@ -69,10 +73,21 @@
     .gauge-item canvas{width:100% !important;height:130px !important;display:block;margin:0 auto}
     .mini-chart canvas{width:100% !important;height:140px !important}
 
-    /* Controls */
-    .control-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .toggle-label{font-weight:600}
-    .btn-group{display:flex; gap:8px}
+    /* Controls improved layout */
+    .controls-grid{display:grid;gap:12px}
+    .pump-block{
+      display:grid;
+      gap:8px;
+      grid-template-columns: 1fr 220px; /* label area + mode buttons column */
+      align-items:center;
+      padding:6px 0;
+    }
+    .pump-top{display:flex;align-items:center;gap:12px}
+    .pump-label{font-weight:600}
+
+    .mode-group{display:flex;gap:8px}
+    .pump-bottom{display:flex;gap:8px;justify-content:flex-end} /* ON/OFF row */
+
     button{padding:8px 12px;border-radius:8px;border:none;font-weight:600;cursor:pointer;transition:all .12s}
     .btn-mode{background:#e2e8f0;color:#64748b}
     .btn-mode.active{background:var(--primary);color:white}
@@ -87,6 +102,12 @@
 
     /* Loader */
     #loader{padding:36px;text-align:center;color:var(--muted)}
+    @media (max-width:780px){
+      .pump-block{grid-template-columns: 1fr; } /* stack into 2 rows on small screens */
+      .pump-bottom{justify-content:space-between}
+      /* make ON/OFF buttons larger for touch */
+      .pump-bottom button{flex:1;padding:10px 12px}
+    }
     @media (max-width:420px){
       .gauge-item canvas{height:110px !important}
       .gauge-val{margin-top:-30px;font-size:1rem}
@@ -97,7 +118,7 @@
   <div class="container">
     <header>
       <h1>💧 Smart Water <span id="connStatus" class="status-dot" title="offline"></span></h1>
-      <p class="lead">Live Dashboard — responsive & split history</p>
+      <p class="lead">Live Dashboard — responsive & pump controls optimized for mobile</p>
     </header>
 
     <div id="loader">Connecting to System...</div>
@@ -127,27 +148,35 @@
       <div class="card">
         <div class="card-title">Pump Control</div>
 
-        <div class="control-row">
-          <span class="toggle-label">Farm Pump</span>
-          <div class="btn-group">
-            <button id="btnFarmAuto" class="btn-mode active" onclick="setMode('farm', false)">Auto</button>
-            <button id="btnFarmMan" class="btn-mode" onclick="setMode('farm', true)">Manual</button>
+        <div class="controls-grid">
+          <!-- Farm pump block -->
+          <div class="pump-block" id="farmBlock">
+            <div class="pump-top">
+              <div class="pump-label">Farm Pump</div>
+              <div class="mode-group" style="margin-left:8px;">
+                <button id="btnFarmAuto" class="btn-mode active" onclick="setMode('farm', false)">Auto</button>
+                <button id="btnFarmMan" class="btn-mode" onclick="setMode('farm', true)">Manual</button>
+              </div>
+            </div>
+            <div class="pump-bottom">
+              <button id="btnFarmOn" class="btn-action enabled" onclick="setState('farm', true)">ON</button>
+              <button id="btnFarmOff" class="btn-action enabled" onclick="setState('farm', false)">OFF</button>
+            </div>
           </div>
-          <div class="btn-group">
-            <button id="btnFarmOn" class="btn-action enabled" onclick="setState('farm', true)">ON</button>
-            <button id="btnFarmOff" class="btn-action enabled" onclick="setState('farm', false)">OFF</button>
-          </div>
-        </div>
 
-        <div class="control-row">
-          <span class="toggle-label">Drainage Pump</span>
-          <div class="btn-group">
-            <button id="btnDrainAuto" class="btn-mode active" onclick="setMode('drain', false)">Auto</button>
-            <button id="btnDrainMan" class="btn-mode" onclick="setMode('drain', true)">Manual</button>
-          </div>
-          <div class="btn-group">
-            <button id="btnDrainOn" class="btn-action enabled" onclick="setState('drain', true)">ON</button>
-            <button id="btnDrainOff" class="btn-action enabled" onclick="setState('drain', false)">OFF</button>
+          <!-- Drain pump block -->
+          <div class="pump-block" id="drainBlock">
+            <div class="pump-top">
+              <div class="pump-label">Drainage Pump</div>
+              <div class="mode-group" style="margin-left:8px;">
+                <button id="btnDrainAuto" class="btn-mode active" onclick="setMode('drain', false)">Auto</button>
+                <button id="btnDrainMan" class="btn-mode" onclick="setMode('drain', true)">Manual</button>
+              </div>
+            </div>
+            <div class="pump-bottom">
+              <button id="btnDrainOn" class="btn-action enabled" onclick="setState('drain', true)">ON</button>
+              <button id="btnDrainOff" class="btn-action enabled" onclick="setState('drain', false)">OFF</button>
+            </div>
           </div>
         </div>
       </div>
@@ -173,6 +202,34 @@
   </div>
 
 <script>
+  // ========== Prevent pinch/gesture zoom (extra measures) ==========
+  // Note: disabling zoom reduces accessibility. Only use for kiosk/kiosk-like UI.
+  (function() {
+    // Prevent gesturestart (iOS)
+    document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+
+    // Prevent pinch-zoom by stopping touchmove when there are multiple touches
+    document.addEventListener('touchmove', function(e){
+      if (e.touches && e.touches.length > 1) {
+        e.preventDefault();
+      }
+      // Some browsers set e.scale for gesture events
+      if (e.scale && e.scale !== 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // Optional: prevent double-tap zoom on some browsers by preventing rapid consecutive touchend defaults
+    let lastTouch = 0;
+    document.addEventListener('touchend', function(e) {
+      const now = Date.now();
+      if (now - lastTouch <= 300) {
+        e.preventDefault();
+      }
+      lastTouch = now;
+    }, { passive: false });
+  })();
+
   // ========== FIREBASE CONFIG (replace as needed) ==========
   const firebaseConfig = {
     apiKey: "AIzaSyCdl2doXjpZsmQZtWzdHWuG-4cTwSsEGOE",
@@ -263,7 +320,7 @@
     document.getElementById('valSoil2').innerText = `${s2}%`;
     document.getElementById('valDrain').innerText = `${dr}%`;
 
-    // Update gauges (guard for NaN)
+    // Update gauges
     chartS1.data.datasets[0].data = [Number.isFinite(s1) ? s1 : 0, 100 - (Number.isFinite(s1) ? s1 : 0)];
     chartS1.update();
     chartS2.data.datasets[0].data = [Number.isFinite(s2) ? s2 : 0, 100 - (Number.isFinite(s2) ? s2 : 0)];
