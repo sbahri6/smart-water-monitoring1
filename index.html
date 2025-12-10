@@ -1,68 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Smart Water System</title>
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
-        :root {
-            --primary: #0ea5e9;
-            --success: #22c55e;
-            --danger: #ef4444;
-            --bg: #f8fafc;
-            --card: #ffffff;
-            --text: #0f172a;
+        :root{
+            --primary:#0ea5e9; --success:#22c55e; --danger:#ef4444;
+            --bg:#f8fafc; --card:#ffffff; --text:#0f172a;
         }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        
-        /* Header */
-        header { text-align: center; margin-bottom: 30px; }
-        h1 { margin: 0; font-weight: 600; color: var(--primary); }
-        .status-dot { height: 10px; width: 10px; background-color: #ccc; border-radius: 50%; display: inline-block; }
-        .online { background-color: var(--success); box-shadow: 0 0 8px var(--success); }
+        *{box-sizing:border-box}
+        body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+        .container{max-width:960px;margin:0 auto;padding:18px}
 
-        /* Cards */
-        .card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+        header{text-align:center;margin-bottom:18px}
+        h1{margin:0;font-weight:600;color:var(--primary);font-size:1.25rem}
+        .status-dot{height:10px;width:10px;background:#ccc;border-radius:50%;display:inline-block;vertical-align:middle}
+        .online{background:var(--success);box-shadow:0 0 8px rgba(34,197,94,.2)}
 
-        /* Gauges Grid */
-        .gauge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
-        .gauge-item h4 { margin: 5px 0; font-size: 0.9rem; color: #64748b; }
-        .gauge-val { font-size: 1.2rem; font-weight: bold; margin-top: -40px; display: block; }
+        .card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 4px 10px rgba(2,6,23,0.04)}
+        .card-title{font-size:1.05rem;font-weight:600;margin-bottom:12px;border-bottom:1px solid #f1f5f9;padding-bottom:8px}
+
+        /* Gauges grid - responsive */
+        .gauge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;text-align:center}
+        .gauge-item{position:relative;padding-top:8px}
+        .gauge-item canvas{width:100%;height:120px;display:block}
+        .gauge-val{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);font-weight:700;font-size:1rem;color:#0f172a}
+        .gauge-item h4{margin:56px 0 4px 0;font-size:0.9rem;color:#64748b}
 
         /* Controls */
-        .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .toggle-label { font-weight: 500; }
-        .btn-group { display: flex; gap: 5px; }
-        
-        button { padding: 8px 16px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
-        .btn-mode { background: #e2e8f0; color: #64748b; }
-        .btn-mode.active { background: var(--primary); color: white; }
-        
-        .btn-action { background: #e2e8f0; color: #94a3b8; opacity: 0.5; pointer-events: none; }
-        .btn-action.enabled { opacity: 1; pointer-events: all; }
-        .btn-action.on { background: var(--success); color: white; }
-        .btn-action.off { background: var(--danger); color: white; }
+        .control-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px}
+        .toggle-label{font-weight:500}
+        .btn-group{display:flex;gap:6px}
+        button{padding:8px 12px;border-radius:8px;border:none;font-weight:600;cursor:pointer;transition:0.18s;background:#e2e8f0;color:#64748b}
+        .btn-mode.active{background:var(--primary);color:white}
+        .btn-action{background:#e2e8f0;color:#94a3b8;opacity:.5;pointer-events:none}
+        .btn-action.enabled{opacity:1;pointer-events:all}
+        .btn-action.on{background:var(--success);color:#fff}
+        .btn-action.off{background:var(--danger);color:#fff}
 
-        /* Charts */
-        canvas { width: 100% !important; height: 200px !important; }
-        
-        /* Loading */
-        #loader { text-align: center; padding: 50px; color: #64748b; }
+        /* History charts container - stacked and responsive */
+        .history-grid{display:grid;grid-template-columns:1fr;gap:12px}
+        .history-chart{background:transparent;padding:8px;border-radius:8px}
+        .history-chart canvas{width:100%;height:160px;display:block}
+
+        /* loader */
+        #loader{text-align:center;padding:36px;color:#64748b}
+
+        /* tidy up small screens */
+        @media (max-width:420px){
+            .gauge-item h4{margin-top:64px}
+            .gauge-item canvas{height:110px}
+            .history-chart canvas{height:140px}
+        }
     </style>
 </head>
 <body>
-
 <div class="container">
     <header>
         <h1>💧 Smart Water <span id="connStatus" class="status-dot"></span></h1>
-        <p style="font-size: 0.9rem; color: #64748b;">Live Dashboard</p>
+        <p style="font-size:.9rem;color:#64748b;margin:6px 0 0">Live Dashboard</p>
     </header>
 
     <div id="loader">Connecting to System...</div>
@@ -91,7 +94,7 @@
 
         <div class="card">
             <div class="card-title">Pump Control</div>
-            
+
             <div class="control-row">
                 <span class="toggle-label">Farm Pump</span>
                 <div class="btn-group">
@@ -118,115 +121,148 @@
         </div>
 
         <div class="card">
-            <div class="card-title">History (Last 20 Readings)</div>
-            <canvas id="historyChart"></canvas>
+            <div class="card-title">History (Last 20 Readings — split)</div>
+            <div class="history-grid">
+                <div class="history-chart">
+                    <div style="font-weight:600;margin-bottom:6px">Soil 1</div>
+                    <canvas id="historyS1"></canvas>
+                </div>
+                <div class="history-chart">
+                    <div style="font-weight:600;margin-bottom:6px">Soil 2</div>
+                    <canvas id="historyS2"></canvas>
+                </div>
+                <div class="history-chart">
+                    <div style="font-weight:600;margin-bottom:6px">Drain</div>
+                    <canvas id="historyDr"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    // 1. FIREBASE CONFIGURATION (Replace with yours)
+    // FIREBASE CONFIG (same as yours)
     const firebaseConfig = {
         apiKey: "AIzaSyCdl2doXjpZsmQZtWzdHWuG-4cTwSsEGOE",
         authDomain: "drams-5854f-default-rtdb.firebaseapp.com",
         databaseURL: "https://drams-5854f-default-rtdb.firebaseio.com",
         projectId: "drams-5854f",
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const DEVICE_ID = "esp32_device_001";
 
-    // Charts objects
-    let chartS1, chartS2, chartDr, histChart;
+    // Chart objects
+    let chartS1, chartS2, chartDr, histS1, histS2, histDr;
 
-    // --- SETUP CHARTS ---
-    function initCharts() {
-        const gaugeOpts = { cutout: '80%', plugins: { tooltip: { enabled: false }, legend: { display: false } } };
-        const createGauge = (ctx, color) => new Chart(ctx, { type: 'doughnut', data: { datasets: [{ data: [0, 100], backgroundColor: [color, '#e2e8f0'], borderWidth: 0 }] }, options: gaugeOpts });
+    function initCharts(){
+        // Common options for small gauges: responsive, don't maintain aspect ratio so CSS height is used
+        const gaugeOpts = {
+            type: 'doughnut',
+            options: {
+                cutout: '80%',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { tooltip: { enabled: false }, legend: { display: false } }
+            }
+        };
+        chartS1 = new Chart(document.getElementById('chartSoil1'), {
+            ...gaugeOpts,
+            data: { datasets: [{ data: [0,100], backgroundColor: ['#22c55e','#e2e8f0'], borderWidth: 0 }] }
+        });
+        chartS2 = new Chart(document.getElementById('chartSoil2'), {
+            ...gaugeOpts,
+            data: { datasets: [{ data: [0,100], backgroundColor: ['#22c55e','#e2e8f0'], borderWidth: 0 }] }
+        });
+        chartDr = new Chart(document.getElementById('chartDrain'), {
+            ...gaugeOpts,
+            data: { datasets: [{ data: [0,100], backgroundColor: ['#0ea5e9','#e2e8f0'], borderWidth: 0 }] }
+        });
 
-        chartS1 = createGauge(document.getElementById('chartSoil1'), '#22c55e'); // Green
-        chartS2 = createGauge(document.getElementById('chartSoil2'), '#22c55e');
-        chartDr = createGauge(document.getElementById('chartDrain'), '#0ea5e9'); // Blue
-
-        // History Line Chart
-        histChart = new Chart(document.getElementById('historyChart'), {
+        // History charts (split into 3). Each has maintainAspectRatio:false so it fits its CSS height.
+        const lineOpts = {
             type: 'line',
-            data: { labels: [], datasets: [
-                { label: 'Soil 1', data: [], borderColor: '#22c55e', tension: 0.4 },
-                { label: 'Soil 2', data: [], borderColor: '#16a34a', borderDash: [5,5], tension: 0.4 },
-                { label: 'Drain', data: [], borderColor: '#0ea5e9', tension: 0.4 }
-            ]},
-            options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, max: 100 }, x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } } }
+            }
+        };
+
+        histS1 = new Chart(document.getElementById('historyS1'), {
+            ...lineOpts,
+            data: { labels: [], datasets: [{ label: 'Soil 1', data: [], borderColor: '#22c55e', tension: 0.3, fill:false }] }
+        });
+        histS2 = new Chart(document.getElementById('historyS2'), {
+            ...lineOpts,
+            data: { labels: [], datasets: [{ label: 'Soil 2', data: [], borderColor: '#16a34a', tension: 0.3, fill:false, borderDash:[5,5] }] }
+        });
+        histDr = new Chart(document.getElementById('historyDr'), {
+            ...lineOpts,
+            data: { labels: [], datasets: [{ label: 'Drain', data: [], borderColor: '#0ea5e9', tension: 0.3, fill:false }] }
         });
     }
 
-    // --- FIREBASE LISTENERS ---
-    
-    // 1. Live Data
-    db.ref('devices/' + DEVICE_ID + '/live').on('value', (snap) => {
-        document.getElementById('loader').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        document.getElementById('connStatus').classList.add('online');
-        
-        const data = snap.val() || {};
-        
-        // Update Numbers
-        document.getElementById('valSoil1').innerText = (data.soil1 || 0) + '%';
-        document.getElementById('valSoil2').innerText = (data.soil2 || 0) + '%';
-        document.getElementById('valDrain').innerText = (data.drainage || 0) + '%';
+    // LISTENERS
 
-        // Update Gauge Rings
-        chartS1.data.datasets[0].data = [data.soil1, 100 - data.soil1]; chartS1.update();
-        chartS2.data.datasets[0].data = [data.soil2, 100 - data.soil2]; chartS2.update();
-        chartDr.data.datasets[0].data = [data.drainage, 100 - data.drainage]; chartDr.update();
+    // Live Data
+    db.ref('devices/' + DEVICE_ID + '/live').on('value', (snap) => {
+        document.getElementById('loader').style.display='none';
+        document.getElementById('app').style.display='block';
+        document.getElementById('connStatus').classList.add('online');
+
+        const data = snap.val() || {};
+        const s1 = (data.soil1 !== undefined) ? data.soil1 : 0;
+        const s2 = (data.soil2 !== undefined) ? data.soil2 : 0;
+        const dr = (data.drainage !== undefined) ? data.drainage : 0;
+
+        document.getElementById('valSoil1').innerText = s1 + '%';
+        document.getElementById('valSoil2').innerText = s2 + '%';
+        document.getElementById('valDrain').innerText = dr + '%';
+
+        chartS1.data.datasets[0].data = [s1, 100 - s1]; chartS1.update();
+        chartS2.data.datasets[0].data = [s2, 100 - s2]; chartS2.update();
+        chartDr.data.datasets[0].data = [dr, 100 - dr]; chartDr.update();
     });
 
-    // 2. Control State (Sync UI buttons with DB)
+    // Control state
     db.ref('devices/' + DEVICE_ID + '/control').on('value', (snap) => {
         const c = snap.val() || {};
         updateControlUI('farm', c.farmManual, c.farmState);
         updateControlUI('drain', c.drainManual, c.drainState);
     });
 
-    // 3. History Data
+    // History (last 20) -> populate three charts separately
     db.ref('devices/' + DEVICE_ID + '/history').limitToLast(20).on('value', (snap) => {
         const labels = [];
         const s1 = [], s2 = [], dr = [];
-        
         snap.forEach(child => {
-            const val = child.val();
-            const date = new Date(val.ts * 1000);
-            labels.push(date.getHours() + ':' + date.getMinutes());
-            s1.push(val.soil1);
-            s2.push(val.soil2);
-            dr.push(val.drainage);
+            const v = child.val();
+            const d = new Date((v.ts || Date.now()/1000) * 1000);
+            // format H:MM with leading zeros for minutes
+            const hh = d.getHours();
+            const mm = ('0' + d.getMinutes()).slice(-2);
+            labels.push(hh + ':' + mm);
+            s1.push(v.soil1 || 0);
+            s2.push(v.soil2 || 0);
+            dr.push(v.drainage || 0);
         });
 
-        histChart.data.labels = labels;
-        histChart.data.datasets[0].data = s1;
-        histChart.data.datasets[1].data = s2;
-        histChart.data.datasets[2].data = dr;
-        histChart.update();
+        histS1.data.labels = labels; histS1.data.datasets[0].data = s1; histS1.update();
+        histS2.data.labels = labels; histS2.data.datasets[0].data = s2; histS2.update();
+        histDr.data.labels = labels; histDr.data.datasets[0].data = dr; histDr.update();
     });
 
-    // --- UI FUNCTIONS ---
-
+    // UI helpers (same as yours)
     function updateControlUI(pump, isManual, state) {
-        // Auto/Manual Buttons
-        document.getElementById(`btn${capitalize(pump)}Auto`).className = isManual ? 'btn-mode' : 'btn-mode active';
-        document.getElementById(`btn${capitalize(pump)}Man`).className = isManual ? 'btn-mode active' : 'btn-mode';
+        const cap = pump.charAt(0).toUpperCase() + pump.slice(1);
+        document.getElementById(`btn${cap}Auto`).className = isManual ? 'btn-mode' : 'btn-mode active';
+        document.getElementById(`btn${cap}Man`).className = isManual ? 'btn-mode active' : 'btn-mode';
 
-        // ON/OFF Buttons (Visual Only)
-        const btnOn = document.getElementById(`btn${capitalize(pump)}On`);
-        const btnOff = document.getElementById(`btn${capitalize(pump)}Off`);
-        
-        // Enable/Disable buttons based on Manual Mode
-        if(isManual) {
-            btnOn.classList.add('enabled');
-            btnOff.classList.add('enabled');
-            
-            // Highlight active state
+        const btnOn = document.getElementById(`btn${cap}On`);
+        const btnOff = document.getElementById(`btn${cap}Off`);
+        if(isManual){
             btnOn.className = state ? 'btn-action enabled on' : 'btn-action enabled';
             btnOff.className = !state ? 'btn-action enabled off' : 'btn-action enabled';
         } else {
@@ -235,25 +271,20 @@
         }
     }
 
-    // --- WRITE TO FIREBASE ---
-
+    // write to firebase (same as yours)
     window.setMode = (pump, manual) => {
         let key = pump + 'Manual';
         let updates = {}; updates[key] = manual;
         db.ref('devices/' + DEVICE_ID + '/control').update(updates);
     };
-
     window.setState = (pump, state) => {
         let key = pump + 'State';
         let updates = {}; updates[key] = state;
         db.ref('devices/' + DEVICE_ID + '/control').update(updates);
     };
 
-    function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-
-    // Start
+    // init
     initCharts();
-
 </script>
 </body>
 </html>
