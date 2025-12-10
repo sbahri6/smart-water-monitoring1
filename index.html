@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no" />
   <meta name="theme-color" content="#0b1220">
-  <title>Smart Water — Live (Malaysia TZ)</title>
+  <title>Smart Water — Live (Fixed Gauges/Layout)</title>
 
   <style>
     :root{
@@ -15,13 +15,28 @@
     .wrap{max-width:1100px;margin:0 auto;padding:12px;box-sizing:border-box}
     header{display:flex;gap:12px;align-items:center;justify-content:space-between}
     h1{font-size:16px;margin:0}
-    .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
-    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:10px;padding:10px;box-sizing:border-box;flex:1 1 280px;min-width:260px}
-    canvas{width:100% !important;height:160px !important;display:block}
-    .gaugeWrap{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-    .gaugeCard{flex:1 1 180px;min-width:160px;display:flex;flex-direction:column;align-items:center;gap:6px}
+    /* Use grid for reliable layout and to avoid overlap */
+    .row{display:grid;grid-template-columns: 1fr 360px;gap:12px;margin-top:12px}
+    @media (max-width:880px) {
+      .row{grid-template-columns: 1fr; }
+    }
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:10px;padding:10px;box-sizing:border-box;min-width:0}
+    /* Chart containers */
+    .historyCard { display:flex;flex-direction:column; gap:10px; min-height:420px; }
+    .chartWrap { width:100%; height:140px; box-sizing:border-box; }
+    @media(min-width:900px){ .chartWrap { height:200px; } }
+
+    /* Gauges column */
+    .rightColumn { display:flex; flex-direction:column; gap:12px; }
+    .gaugeBox { padding:12px; display:flex; flex-direction:column; gap:8px; }
+    .gaugeWrap{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .gaugeCard{flex:1 1 100px;min-width:100px;display:flex;flex-direction:column;align-items:center;gap:6px}
+    /* ensure canvases have constrained heights to avoid overlap */
+    .gaugeCard canvas { width:100% !important; height:130px !important; display:block; }
+    .chartWrap canvas { width:100% !important; height:100% !important; display:block; }
+
     .label{font-size:12px;color:var(--muted)}
-    .big{font-size:20px;font-weight:600}
+    .big{font-size:18px;font-weight:600}
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     button{appearance:none;border:0;padding:8px 12px;border-radius:8px;background:#142032;color:var(--text);cursor:pointer;font-size:13px;min-width:90px;white-space:nowrap}
     button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.04)}
@@ -29,9 +44,6 @@
     footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
     .small{font-size:12px;color:var(--muted)}
     hr{border:none;border-top:1px solid rgba(255,255,255,0.03)}
-    @media(min-width:900px){
-      canvas{height:200px !important}
-    }
   </style>
 
   <!-- Chart.js -->
@@ -45,44 +57,46 @@
     </header>
 
     <div class="row">
-      <div class="card" style="flex:2 1 520px">
+      <!-- LEFT: history -->
+      <div class="card historyCard">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
             <div class="label">History (last ~500 points)</div>
-            <div class="small">Auto-refresh every 5s — times shown in Malaysia (GMT+8)</div>
+            <div class="small">Auto-refresh every 5s — Malaysia time (GMT+8)</div>
           </div>
           <div>
             <button id="refreshBtn" class="secondary">Refresh</button>
           </div>
         </div>
 
-        <div style="margin-top:10px">
+        <div class="chartWrap card" style="padding:8px;">
           <canvas id="soil1Chart"></canvas>
         </div>
-        <div style="margin-top:8px">
+        <div class="chartWrap card" style="padding:8px;">
           <canvas id="soil2Chart"></canvas>
         </div>
-        <div style="margin-top:8px">
+        <div class="chartWrap card" style="padding:8px;">
           <canvas id="drainageChart"></canvas>
         </div>
       </div>
 
-      <div style="flex:1 1 320px;min-width:280px">
-        <div class="card">
+      <!-- RIGHT: gauges + controls -->
+      <div class="rightColumn">
+        <div class="card gaugeBox">
           <div class="label">Live gauges</div>
           <div class="gaugeWrap" style="margin-top:8px">
             <div class="gaugeCard">
-              <canvas id="gsoil1" width="260" height="160"></canvas>
+              <canvas id="gsoil1"></canvas>
               <div class="label">Soil 1</div>
               <div class="big" id="gsoil1Val">--%</div>
             </div>
             <div class="gaugeCard">
-              <canvas id="gsoil2" width="260" height="160"></canvas>
+              <canvas id="gsoil2"></canvas>
               <div class="label">Soil 2</div>
               <div class="big" id="gsoil2Val">--%</div>
             </div>
             <div class="gaugeCard">
-              <canvas id="gdrain" width="260" height="160"></canvas>
+              <canvas id="gdrain"></canvas>
               <div class="label">Drainage</div>
               <div class="big" id="gdrainVal">--%</div>
             </div>
@@ -110,11 +124,11 @@
           </div>
 
           <div style="margin-top:12px" class="small">
-            Note: ESP32 now reads these control flags and will obey manual mode.
+            ESP32 reads these control flags and will obey manual mode.
           </div>
         </div>
 
-        <div class="card" style="margin-top:12px">
+        <div class="card" style="padding:12px">
           <div class="label">Session</div>
           <div class="small" id="sessionInfo">---</div>
         </div>
@@ -124,12 +138,12 @@
     <footer>Built for speed • Replace API keys in the top of the page • Hosted on GitHub Pages</footer>
   </div>
 
-  <!-- Firebase (modular) + main logic -->
+  <!-- Firebase + main logic -->
   <script type="module">
     // ====== CONFIG - Replace these with your project's values ======
-    const FIREBASE_API_KEY = "AIzaSyCdl2doXjpZsmQZtWzdHWuG-4cTwSsEGOE"; // ← REPLACE if needed
+    const FIREBASE_API_KEY = "AIzaSyCdl2doXjpZsmQZtWzdHWuG-4cTwSsEGOE"; // ← REPLACE
     const DATABASE_URL = "https://drams-5854f-default-rtdb.firebaseio.com"; // ← REPLACE (no trailing slash)
-    const DEVICE_ID = "esp32_device_001"; // ← REPLACE if needed
+    const DEVICE_ID = "esp32_device_001"; // ← REPLACE
     // ===============================================================
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
@@ -152,50 +166,29 @@
       year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone: 'Asia/Kuala_Lumpur'
     });
 
-    // Helper: write the page URL to /devices/DEVICE_ID/webUrl on each load
     async function publishStartupInfo(uid) {
       const p = `/devices/${DEVICE_ID}/webUrl`;
       const ts = Math.floor(Date.now()/1000);
-      const payload = {
-        url: location.href,
-        ua: navigator.userAgent,
-        ts: ts,
-        clientId: uid || "anon"
-      };
-      try {
-        await update(ref(db, p), payload);
-        console.log('Published web URL', payload);
-      } catch(e) {
-        console.warn('Publish startup failed', e);
-      }
+      const payload = { url: location.href, ua: navigator.userAgent, ts: ts, clientId: uid || "anon" };
+      try { await update(ref(db, p), payload); } catch(e) { console.warn('Publish startup failed', e); }
     }
 
-    // Utility: patch some keys in live object
     async function patchLive(patchObj) {
-      try {
-        await update(ref(db, `/devices/${DEVICE_ID}/live`), patchObj);
-      } catch(e) {
-        console.warn('patchLive failed', e);
-      }
+      try { await update(ref(db, `/devices/${DEVICE_ID}/live`), patchObj); } catch(e) { console.warn('patchLive failed', e); }
     }
 
-    // ====== Charts & Gauges setup using Chart.js ======
+    /******* Chart & Gauge setup *******/
+
+    // Create a standard line chart (history)
     const createLine = (ctx, label, color) => {
       return new Chart(ctx, {
         type: 'line',
         data: {
-          labels: [], // formatted Malaysian-time strings
-          datasets: [{
-            label,
-            data: [],
-            tension: 0.25,
-            pointRadius: 0,
-            borderWidth: 2,
-            borderColor: color
-          }]
+          labels: [],
+          datasets: [{ label, data: [], tension: 0.25, pointRadius: 0, borderWidth: 2, borderColor: color }]
         },
         options: {
-          animation: false,
+          animation: { duration: 250 },
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
@@ -203,10 +196,7 @@
             title: { display: true, text: label, color: '#9fb2d1' },
             tooltip: {
               callbacks: {
-                title: (items) => {
-                  // items[0].label already contains Malaysia formatted string
-                  return items[0].label;
-                },
+                title: (items) => items[0].label,
                 label: (item) => `${item.dataset.label}: ${item.formattedValue}%`
               }
             }
@@ -223,45 +213,27 @@
       });
     };
 
-    const createGauge = (ctx, label) => {
-      return new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: [label, 'rest'],
-          datasets: [{
-            data: [0, 100],
-            circumference: 180,
-            rotation: 270,
-            cutout: '70%',
-            borderWidth: 0
-          }]
-        },
-        options: {
-          animation: false,
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { enabled: false },
-            niceGauge: { currentValue: 0, label: label } // used by plugin if present
-          }
-        }
-      });
-    };
+    const soil1Chart = createLine(document.getElementById('soil1Chart').getContext('2d'), 'Soil 1 (%)', '#2dd4bf');
+    const soil2Chart = createLine(document.getElementById('soil2Chart').getContext('2d'), 'Soil 2 (%)', '#f1c40f');
+    const drainChart = createLine(document.getElementById('drainageChart').getContext('2d'), 'Drainage (%)', '#60a5fa');
 
-    // plugin from earlier "nice gauge" (draws zones/needle/text)
+    // Nice gauge plugin (safe-guards & robust)
     const gaugePlugin = {
       id: 'niceGauge',
       afterDraw(chart) {
+        // make sure layout is ready
+        if (!chart || !chart.ctx || !chart.chartArea) return;
         const cfg = chart.options.plugins && chart.options.plugins.niceGauge;
         if (!cfg) return;
+
+        // sometimes chartArea has zero sizes during first frame — bail if so
+        const ca = chart.chartArea;
+        if (ca.right - ca.left <= 0 || ca.bottom - ca.top <= 0) return;
+
         const ctx = chart.ctx;
-        const chartArea = chart.chartArea;
-        const width = chart.width;
-        const height = chart.height;
-        const cx = (chartArea.left + chartArea.right) / 2;
-        const cy = chartArea.bottom - 6;
-        const radius = Math.min((chartArea.right - chartArea.left) / 2, (chartArea.bottom - chartArea.top)) * 0.9;
+        const cx = (ca.left + ca.right) / 2;
+        const cy = ca.bottom - 6;
+        const radius = Math.min((ca.right - ca.left) / 2, (ca.bottom - ca.top)) * 0.9;
         const rotation = -Math.PI / 2;
         const circumference = Math.PI;
         const value = Math.max(0, Math.min(100, cfg.currentValue ?? 0));
@@ -278,6 +250,7 @@
         ctx.stroke();
         ctx.closePath();
 
+        // colored zones
         const zones = cfg.zones || [
           { from: 0, to: 60, color: '#10b981' },
           { from: 60, to: 85, color: '#f59e0b' },
@@ -310,6 +283,7 @@
         const nx = cx + Math.cos(needleAngle) * needleLen;
         const ny = cy + Math.sin(needleAngle) * needleLen;
 
+        // shadow
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(nx, ny);
@@ -319,6 +293,7 @@
         ctx.stroke();
         ctx.closePath();
 
+        // main needle
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(nx, ny);
@@ -328,7 +303,7 @@
         ctx.stroke();
         ctx.closePath();
 
-        // pivot
+        // pivot circle
         ctx.beginPath();
         ctx.fillStyle = '#ffffff';
         ctx.arc(cx, cy, Math.max(4, radius * 0.05), 0, Math.PI * 2);
@@ -337,46 +312,40 @@
 
         // center numeric
         ctx.fillStyle = '#e6eef8';
-        ctx.font = `${Math.round(radius * 0.24)}px Inter, Roboto, sans-serif`;
+        ctx.font = `${Math.round(radius * 0.22)}px Inter, Roboto, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${Math.round(value)}%`, cx, cy - radius * 0.18);
 
         // label
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font = `${Math.round(radius * 0.09)}px Inter, Roboto, sans-serif`;
+        ctx.font = `${Math.round(radius * 0.08)}px Inter, Roboto, sans-serif`;
         ctx.fillText(cfg.label || '', cx, cy + radius * 0.22);
 
         ctx.restore();
       }
     };
-
     Chart.register(gaugePlugin);
 
-    const soil1Chart = createLine(document.getElementById('soil1Chart').getContext('2d'), 'Soil 1 (%)', '#2dd4bf');
-    const soil2Chart = createLine(document.getElementById('soil2Chart').getContext('2d'), 'Soil 2 (%)', '#f1c40f');
-    const drainChart = createLine(document.getElementById('drainageChart').getContext('2d'), 'Drainage (%)', '#60a5fa');
-
-    // gauges
+    // Create gauge chart wrapper (doughnut base + plugin)
     function createGaugeChart(canvasEl, label) {
       const ctx = canvasEl.getContext('2d');
       const chart = new Chart(ctx, {
         type: 'doughnut',
         data: { labels: [label, 'rest'], datasets: [{ data: [0,100], backgroundColor: ['rgba(0,0,0,0)','rgba(0,0,0,0)'], borderWidth: 0 }] },
         options: {
-          animation: false,
+          animation: { duration: 300 },
           responsive: true,
           maintainAspectRatio: false,
           cutout: '70%',
           rotation: -90 * (Math.PI/180),
           circumference: 180 * (Math.PI/180),
-          plugins: {
-            legend: { display: false },
-            tooltip: { enabled: false },
-            niceGauge: { currentValue: 0, label: label }
-          }
+          plugins: { legend: { display: false }, tooltip: { enabled: false }, niceGauge: { currentValue: 0, label: label } }
         }
       });
+      // force layout now so plugin can draw reliably
+      chart.resize();
+      chart.update();
       return chart;
     }
 
@@ -384,43 +353,43 @@
     const gsoil2 = createGaugeChart(document.getElementById('gsoil2'), 'Soil 2');
     const gdrain = createGaugeChart(document.getElementById('gdrain'), 'Drain');
 
+    // Robust setGauge: set value, resize (if needed) and update (causes plugin to repaint)
     function setGauge(g, val) {
       g.data.datasets[0].data[0] = val;
       g.data.datasets[0].data[1] = Math.max(0, 100 - val);
+      if (!g.options.plugins) g.options.plugins = {};
       g.options.plugins.niceGauge = g.options.plugins.niceGauge || {};
       g.options.plugins.niceGauge.currentValue = val;
-      g.update('none');
+      // ensure chart layout is correct then update
+      try { g.resize(); } catch(e) {}
+      g.update();
     }
 
     function setText(id, txt) { const el = document.getElementById(id); if (el) el.textContent = txt; }
 
-    // Buttons
+    /******* Buttons & Fetch helpers *******/
+
     const farmManualToggle = document.getElementById('farmManualToggle');
     const farmDesiredToggle = document.getElementById('farmDesiredToggle');
     const drainManualToggle = document.getElementById('drainManualToggle');
     const drainDesiredToggle = document.getElementById('drainDesiredToggle');
     const refreshBtn = document.getElementById('refreshBtn');
 
-    farmManualToggle.addEventListener('click', async () => {
-      const cur = farmManualToggle.dataset.on === '1';
-      await patchLive({ farmManualMode: cur ? 0 : 1 });
-    });
-    farmDesiredToggle.addEventListener('click', async () => {
-      const cur = farmDesiredToggle.dataset.on === '1';
-      await patchLive({ farmManualDesired: cur ? 0 : 1 });
-    });
-    drainManualToggle.addEventListener('click', async () => {
-      const cur = drainManualToggle.dataset.on === '1';
-      await patchLive({ drainManualMode: cur ? 0 : 1 });
-    });
-    drainDesiredToggle.addEventListener('click', async () => {
-      const cur = drainDesiredToggle.dataset.on === '1';
-      await patchLive({ drainManualDesired: cur ? 0 : 1 });
-    });
+    farmManualToggle.addEventListener('click', async () => { const cur = farmManualToggle.dataset.on === '1'; await patchLive({ farmManualMode: cur ? 0 : 1 }); });
+    farmDesiredToggle.addEventListener('click', async () => { const cur = farmDesiredToggle.dataset.on === '1'; await patchLive({ farmManualDesired: cur ? 0 : 1 }); });
+    drainManualToggle.addEventListener('click', async () => { const cur = drainManualToggle.dataset.on === '1'; await patchLive({ drainManualMode: cur ? 0 : 1 }); });
+    drainDesiredToggle.addEventListener('click', async () => { const cur = drainDesiredToggle.dataset.on === '1'; await patchLive({ drainManualDesired: cur ? 0 : 1 }); });
 
     refreshBtn.addEventListener('click', () => { fetchAllHistory(); });
 
-    // Fetch history
+    // ===== history fetching & time formatting (Malaysia) =====
+    const malaysiaFormatterShort = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kuala_Lumpur'
+    });
+    const malaysiaFormatterFull = new Intl.DateTimeFormat('en-GB', {
+      year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone: 'Asia/Kuala_Lumpur'
+    });
+
     async function fetchHistoryArray(name, maxPoints = 500) {
       const node = `devices/${DEVICE_ID}/history/${name}`;
       try {
@@ -446,12 +415,9 @@
         fetchHistoryArray('drainage')
       ]);
       function applyToChart(chart, arr) {
-        chart.data.labels = arr.map((a,i) => {
-          if (a.ts) return malaysiaFormatterShort.format(new Date(a.ts * 1000));
-          return `#${i+1}`;
-        });
+        chart.data.labels = arr.map((a,i) => a.ts ? malaysiaFormatterShort.format(new Date(a.ts * 1000)) : `#${i+1}`);
         chart.data.datasets[0].data = arr.map(a=>a.v);
-        chart.update('none');
+        chart.update();
       }
       applyToChart(soil1Chart, s1);
       applyToChart(soil2Chart, s2);
@@ -459,16 +425,25 @@
       statusEl.textContent = 'live';
     }
 
-    // Live listener
+    /******* Firebase wiring *******/
     const liveRef = ref(db, `/devices/${DEVICE_ID}/live`);
+
     function applyLiveData(live) {
       if (!live) return;
       const s1 = Number(live.soil1 ?? live.soil_1 ?? 0);
       const s2 = Number(live.soil2 ?? live.soil_2 ?? 0);
       const dr = Number(live.drainage ?? 0);
-      setGauge(gsoil1, s1); setGauge(gsoil2, s2); setGauge(gdrain, dr);
-      setText('gsoil1Val', `${s1}%`); setText('gsoil2Val', `${s2}%`); setText('gdrainVal', `${dr}%`);
 
+      // update gauges (robust)
+      setGauge(gsoil1, s1);
+      setGauge(gsoil2, s2);
+      setGauge(gdrain, dr);
+
+      setText('gsoil1Val', `${s1}%`);
+      setText('gsoil2Val', `${s2}%`);
+      setText('gdrainVal', `${dr}%`);
+
+      // reflect manual flags
       const fm = live.farmManualMode ? 1 : 0;
       const fd = live.farmManualDesired ? 1 : 0;
       const dm = live.drainManualMode ? 1 : 0;
@@ -498,20 +473,14 @@
       sessionInfo.textContent = `Live ts: ${ts} • farmOut:${live.farmPumpOut??'?'} drainOut:${live.drainPumpOut??'?'}`;
     }
 
-    // Attach firebase auth + listeners
+    // auth + listen
     signInAnonymously(auth).then(() => {
       onAuthStateChanged(auth, async (user) => {
         if (user) {
           statusEl.textContent = 'authenticated';
           await publishStartupInfo(user.uid);
-          onValue(liveRef, (snapshot) => {
-            const v = snapshot.val();
-            applyLiveData(v);
-          }, (err) => {
-            console.warn('onValue error', err);
-          });
+          onValue(liveRef, (snapshot) => { const v = snapshot.val(); applyLiveData(v); }, (err) => { console.warn('onValue error', err); });
           fetchAllHistory();
-          // refresh history periodically
           setInterval(fetchAllHistory, 5000);
         } else {
           statusEl.textContent = 'signed out';
@@ -522,11 +491,16 @@
       console.error('auth failed', err);
     });
 
-    // initial UI defaults
+    // initial defaults
     farmManualToggle.dataset.on = '0';
     farmDesiredToggle.dataset.on = '0';
     drainManualToggle.dataset.on = '0';
     drainDesiredToggle.dataset.on = '0';
+
+    // also ensure gauges reflow on orientation change / resize
+    window.addEventListener('resize', () => {
+      try { gsoil1.resize(); gsoil2.resize(); gdrain.resize(); } catch(e) {}
+    });
   </script>
 
   <script>
@@ -534,7 +508,7 @@
     const hint = document.createElement('div');
     hint.className = 'small';
     hint.style.marginTop = '6px';
-    hint.innerHTML = 'ESP32 reads the manual flags now — web toggles should control pumps when the device is online.';
+    hint.innerHTML = 'If gauges still overlap on your device, try clearing the browser cache and reload once — the layout fixes are designed to avoid overlap at all widths.';
     footer.appendChild(hint);
   </script>
 </body>
